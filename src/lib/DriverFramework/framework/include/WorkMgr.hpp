@@ -1,24 +1,24 @@
 /**********************************************************************
 * Copyright (c) 2015 Mark Charlebois
-*
+* 
 * All rights reserved.
-*
+* 
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
 * disclaimer below) provided that the following conditions are met:
-*
+* 
 *  * Redistributions of source code must retain the above copyright
 *    notice, this list of conditions and the following disclaimer.
-*
+* 
 *  * Redistributions in binary form must reproduce the above copyright
 *    notice, this list of conditions and the following disclaimer in the
 *    documentation and/or other materials provided with the
 *    distribution.
-*
+* 
 *  * Neither the name of Dronecode Project nor the names of its
 *    contributors may be used to endorse or promote products derived
 *    from this software without specific prior written permission.
-*
+* 
 * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
 * GRANTED BY THIS LICENSE.  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
 * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
@@ -35,6 +35,9 @@
 *************************************************************************/
 #pragma once
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 #include <stdint.h>
 #include <time.h>
 #ifdef __QURT
@@ -42,8 +45,7 @@
 #endif
 #include "HandleObj.hpp"
 
-namespace DriverFramework
-{
+namespace DriverFramework {
 
 // Types
 class WorkHandle : public IntHandleObj
@@ -74,19 +76,17 @@ class WorkMgr
 {
 public:
 	// Interface functions
-	static void getWorkHandle(WorkCallback cb, void *arg, uint32_t delay_usec, WorkHandle &handle);
-	static void releaseWorkHandle(WorkHandle &handle);
+	static void getWorkHandle(WorkCallback cb, void *arg, uint32_t delay, WorkHandle& handle);
+	static int releaseWorkHandle(WorkHandle &handle);
 	static int schedule(WorkHandle &handle);
 	static void setError(WorkHandle &h, int error);
 
 private:
 	friend class Framework;
 
-	static bool isValidHandle(const WorkHandle &h);
+	static bool isValid(const WorkHandle &h);
 	static int initialize(void);
 	static void finalize(void);
-
-	static bool m_initialized;
 };
 
 };

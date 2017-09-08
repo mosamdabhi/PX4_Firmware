@@ -31,14 +31,16 @@
 #
 ############################################################################
 
-file(GLOB drivers *)
+set(drivers i2c pressure)
+
+set(df_driver_libs)
 
 # Add driver libraries
 foreach(driver ${drivers})
-	if(IS_DIRECTORY ${driver})
-		message("FOUND ${driver}")
-		add_subdirectory(${driver})
-	endif()
+	add_subdirectory(${driver})
+	list(APPEND df_driver_libs
+		df_${driver}
+		)
 endforeach()
 
 # vim: set noet fenc=utf-8 ff=unix ft=cmake :

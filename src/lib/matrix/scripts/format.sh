@@ -15,12 +15,11 @@ then
 	echo formatting
 	$astyle ${format_wildcards}
 else
-	echo checking format...
-	$astyle --dry-run ${format_wildcards} | grep Formatted &>/dev/null
+	echo checking format
+	$astyle --dry-run ${format_wildcards} | grep Formatted
 	if [[ $? -eq 0 ]]
 	then
-		echo Error: need to format
-		echo "From cmake build directory run: 'make format'"
+		echo need to format
 		exit 1
 	fi
 	echo no formatting needed

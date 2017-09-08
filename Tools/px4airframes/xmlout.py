@@ -22,10 +22,6 @@ class XMLOutput():
         xml_parameters = ET.Element("airframes")
         xml_version = ET.SubElement(xml_parameters, "version")
         xml_version.text = "1"
-        xml_version = ET.SubElement(xml_parameters, "airframe_version_major")
-        xml_version.text = "1"
-        xml_version = ET.SubElement(xml_parameters, "airframe_version_minor")
-        xml_version.text = "1"
         last_param_name = ""
         board_specific_param_set = False
         for group in groups:
@@ -49,8 +45,6 @@ class XMLOutput():
                 xml_group.attrib["image"] = "OctoRotorX"
             elif (group.GetName() == "Octorotor Coaxial"):
                 xml_group.attrib["image"] = "OctoRotorXCoaxial"
-            elif (group.GetName() == "Octo Coax Wide"):
-                xml_group.attrib["image"] = "OctoRotorXCoaxial"
             elif (group.GetName() == "Quadrotor Wide"):
                 xml_group.attrib["image"] = "QuadRotorWide"
             elif (group.GetName() == "Quadrotor H"):
@@ -69,8 +63,6 @@ class XMLOutput():
                 xml_group.attrib["image"] = "VTOLTiltRotor"
             elif (group.GetName() == "Coaxial Helicopter"):
                 xml_group.attrib["image"] = "HelicopterCoaxial"
-            elif (group.GetName() == "Helicopter"):
-                xml_group.attrib["image"] = "Helicopter"
             elif (group.GetName() == "Hexarotor Coaxial"):
                 xml_group.attrib["image"] = "Y6A"
             elif (group.GetName() == "Y6B"):

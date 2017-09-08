@@ -1,12 +1,10 @@
-# Gazebo for MAVLink SITL
+# Gazebo for PX4 SITL
 
-This is a flight simulator for multirotors, VTOL and fixed wing. It uses the motor model and other pieces from the RotorS simulator, but in contrast to RotorS has no dependency on ROS. This repository is in the process of being re-integrated into RotorS, which then will support ROS and MAVLink as transport options: https://github.com/ethz-asl/rotors_simulator
 
-**If you use this simulator in academic work, please cite RotorS as per the README in the above link.**
 
-## Install Gazebo Simulator
+## Install Gazebo 6 Simulator
 
-Follow instructions on the [official site](http://gazebosim.org/tutorials?cat=install) to install Gazebo. Mac OS users should install Gazebo 7, Linux users PGazebo 6. Failing to install the right version can render the simulation inoperational.
+Follow instructions on the [official site](http://gazebosim.org/tutorials?cat=install) to install Gazebo version 6.
 
 
 ## Protobuf
@@ -16,14 +14,13 @@ Install the protobuf library, which is used as interface to Gazebo.
 ### Ubuntu Linux
 
 ```bash
-sudo apt-get install libprotobuf-dev libprotoc-dev protobuf-compiler libeigen3-dev libgazebo6-dev
+sudo apt-get install libprotobuf-dev libprotoc-dev protobuf-compiler
 ```
 
 ### Mac OS
 
 ```bash
-brew install graphviz sdformat3 protobuf eigen opencv
-brew install gazebo7
+brew install protobuf
 ```
 
 ## Build Gazebo Plugins (all operating systems)
@@ -33,7 +30,7 @@ Clone the gazebo plugins repository to your computer. IMPORTANT: If you do not c
 ```bash
 mkdir -p ~/src
 cd src
-git clone https://github.com/Dronecode/sitl_gazebo.git
+git clone https://github.com/PX4/sitl_gazebo.git
 ```
 
 Create a build folder in the top level of your repository:
@@ -68,46 +65,21 @@ cd Build
 cmake ..
 ```
 
+Autogenerate the sdf file with the command
+```bash
+make sdf
+```
+
 Now build the gazebo plugins by typing:
 
 ```bash
 make
 ```
 
-## Install
-
-If you wish the libraries and models to be usable anywhere on your system without
-specifying th paths, install as shown below.
-
-**Note: If you are using ubuntu, it is best to see the packaging section.**
-
-```bash
-sudo make install
-```
-
-## Testing
-
 Gazebo will now launch when typing 'gazebo' on the shell:
 
 ```bash
-. /usr/share/gazebo/setup.sh
-. /usr/share/mavlink_sitl_gazebo/setup.sh
-gazebo worlds/iris.world
+gazebo
 ```
 
-Please refer to the documentation of the particular flight stack how to run it against this framework, e.g. [PX4](http://dev.px4.io/simulation-gazebo.html)
-
-## Packaging
-
-### Deb
-
-To create a debian package for ubuntu and install it to your system.
-
-```bash
-cd Build
-cmake ..
-make
-rm *.deb
-cpack -G DEB
-sudo dpkg -i *.deb
-```
+Start the PX4 SITL executable as documented [in the PX4 SITL documentation](http://dev.px4.io/simulation-gazebo.html). Then insert the IRIS model from the **insert** tab. This should trigger the communication with the PX4 SITL app.

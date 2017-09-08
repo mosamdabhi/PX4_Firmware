@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Pavel Kirienko <pavel.kirienko@gmail.com>
- *                         Ilia Sheremet <illia.sheremet@gmail.com>
+ * Copyright (C) 2014 Pavel Kirienko <pavel.kirienko@gmail.com>
  */
 
 #pragma once
@@ -11,7 +10,6 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
-#include <memory>
 #include <algorithm>
 
 #include <fcntl.h>
@@ -25,7 +23,6 @@
 #include <uavcan/uavcan.hpp>
 #include <uavcan_linux/clock.hpp>
 #include <uavcan_linux/exception.hpp>
-
 
 namespace uavcan_linux
 {
@@ -61,7 +58,7 @@ class SocketCanIface : public uavcan::ICanIface
 {
     static inline ::can_frame makeSocketCanFrame(const uavcan::CanFrame& uavcan_frame)
     {
-        ::can_frame sockcan_frame { uavcan_frame.id& uavcan::CanFrame::MaskExtID, uavcan_frame.dlc, { } };
+        ::can_frame sockcan_frame { uavcan_frame.id & uavcan::CanFrame::MaskExtID, uavcan_frame.dlc, { } };
         (void)std::copy(uavcan_frame.data, uavcan_frame.data + uavcan_frame.dlc, sockcan_frame.data);
         if (uavcan_frame.isExtended())
         {
@@ -151,8 +148,6 @@ class SocketCanIface : public uavcan::ICanIface
     std::queue<RxItem> rx_queue_;                                   // TODO: Use pool allocator
     std::unordered_multiset<std::uint32_t> pending_loopback_ids_;   // TODO: Use pool allocator
 
-    std::vector<::can_filter> hw_filters_container_;
-
     void registerError(SocketCanError e) { errors_[e]++; }
 
     void incrementNumFramesInSocketTxQueue()
@@ -185,17 +180,10 @@ class SocketCanIface : public uavcan::ICanIface
 
     int write(const uavcan::CanFrame& frame) const
     {
-        errno = 0;
-
         const ::can_frame sockcan_frame = makeSocketCanFrame(frame);
-
         const int res = ::write(fd_, &sockcan_frame, sizeof(sockcan_frame));
         if (res <= 0)
         {
-            if (errno == ENOBUFS || errno == EAGAIN)    // Writing is not possible atm, not an error
-            {
-                return 0;
-            }
             return res;
         }
         if (res != sizeof(sockcan_frame))
@@ -237,16 +225,6 @@ class SocketCanIface : public uavcan::ICanIface
         {
             return (res < 0 && errno == EWOULDBLOCK) ? 0 : res;
         }
-        /*
-         * Flags
-         */
-        loopback = (msg.msg_flags & static_cast<int>(MSG_CONFIRM)) != 0;
-
-        if (!loopback && !checkHWFilters(sockcan_frame))
-        {
-            return 0;
-        }
-
         frame = makeUavcanFrame(sockcan_frame);
         /*
          * Timestamp
@@ -265,19 +243,24 @@ class SocketCanIface : public uavcan::ICanIface
             assert(0);
             return -1;
         }
+        /*
+         * Flags
+         */
+        loopback = (msg.msg_flags & static_cast<int>(MSG_CONFIRM)) != 0;
         return 1;
     }
 
     void pollWrite()
     {
-        while (hasReadyTx())
+        while (!tx_queue_.empty() && (frames_in_socket_tx_queue_ < max_frames_in_socket_tx_queue_))
         {
             const TxItem tx = tx_queue_.top();
-
+            tx_queue_.pop();
+            assert(tx_queue_.empty() ? true : !tx.frame.priorityLowerThan(tx_queue_.top().frame)); // Order check
             if (tx.deadline >= clock_.getMonotonic())
             {
                 const int res = write(tx.frame);
-                if (res == 1)                   // Transmitted successfully
+                if (res == 1)
                 {
                     incrementNumFramesInSocketTxQueue();
                     if (tx.flags & uavcan::CanIOFlagLoopback)
@@ -285,11 +268,7 @@ class SocketCanIface : public uavcan::ICanIface
                         (void)pending_loopback_ids_.insert(tx.frame.id);
                     }
                 }
-                else if (res == 0)              // Not transmitted, nor is it an error
-                {
-                    break;                      // Leaving the loop, the frame remains enqueued for the next retry
-                }
-                else                            // Transmission error
+                else
                 {
                     registerError(SocketCanError::SocketWriteFailure);
                 }
@@ -298,9 +277,6 @@ class SocketCanIface : public uavcan::ICanIface
             {
                 registerError(SocketCanError::TxTimeout);
             }
-
-            // Removing the frame from the queue even if transmission failed
-            tx_queue_.pop();
         }
     }
 
@@ -335,30 +311,7 @@ class SocketCanIface : public uavcan::ICanIface
             else
             {
                 registerError(SocketCanError::SocketReadFailure);
-                break;
             }
-        }
-    }
-
-    /**
-     * Returns true if a frame accepted by HW filters
-     */
-    bool checkHWFilters(const ::can_frame& frame) const
-    {
-        if (!hw_filters_container_.empty())
-        {
-            for (auto& f : hw_filters_container_)
-            {
-                if (((frame.can_id & f.can_mask) ^ f.can_id) == 0)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-        else
-        {
-            return true;
         }
     }
 
@@ -368,7 +321,7 @@ public:
      *
      * @ref max_frames_in_socket_tx_queue       See a note in the class comment.
      */
-    SocketCanIface(const SystemClock& clock, int socket_fd, int max_frames_in_socket_tx_queue = 2)
+    SocketCanIface(const SystemClock& clock, int socket_fd, int max_frames_in_socket_tx_queue = 3)
         : clock_(clock)
         , fd_(socket_fd)
         , max_frames_in_socket_tx_queue_(max_frames_in_socket_tx_queue)
@@ -381,7 +334,6 @@ public:
      */
     virtual ~SocketCanIface()
     {
-        UAVCAN_TRACE("SocketCAN", "SocketCanIface: Closing fd %d", fd_);
         (void)::close(fd_);
     }
 
@@ -441,11 +393,8 @@ public:
         }
     }
 
-    bool hasReadyRx() const { return !rx_queue_.empty(); }
-    bool hasReadyTx() const
-    {
-        return !tx_queue_.empty() && (frames_in_socket_tx_queue_ < max_frames_in_socket_tx_queue_);
-    }
+    bool hasPendingTx() const { return !tx_queue_.empty(); }
+    bool hasReadyRx()   const { return !rx_queue_.empty(); }
 
     std::int16_t configureFilters(const uavcan::CanFilterConfig* const filter_configs,
                                   const std::uint16_t num_configs) override
@@ -455,42 +404,38 @@ public:
             assert(0);
             return -1;
         }
-        hw_filters_container_.clear();
-        hw_filters_container_.resize(num_configs);
-
+        std::vector< ::can_filter> filts(num_configs);
         for (unsigned i = 0; i < num_configs; i++)
         {
             const uavcan::CanFilterConfig& fc = filter_configs[i];
-            hw_filters_container_[i].can_id   = fc.id   & uavcan::CanFrame::MaskExtID;
-            hw_filters_container_[i].can_mask = fc.mask & uavcan::CanFrame::MaskExtID;
+            filts[i].can_id   = fc.id   & uavcan::CanFrame::MaskExtID;
+            filts[i].can_mask = fc.mask & uavcan::CanFrame::MaskExtID;
             if (fc.id & uavcan::CanFrame::FlagEFF)
             {
-                hw_filters_container_[i].can_id |= CAN_EFF_FLAG;
+                filts[i].can_id |= CAN_EFF_FLAG;
             }
             if (fc.id & uavcan::CanFrame::FlagRTR)
             {
-                hw_filters_container_[i].can_id |= CAN_RTR_FLAG;
+                filts[i].can_id |= CAN_RTR_FLAG;
             }
             if (fc.mask & uavcan::CanFrame::FlagEFF)
             {
-                hw_filters_container_[i].can_mask |= CAN_EFF_FLAG;
+                filts[i].can_mask |= CAN_EFF_FLAG;
             }
             if (fc.mask & uavcan::CanFrame::FlagRTR)
             {
-                hw_filters_container_[i].can_mask |= CAN_RTR_FLAG;
+                filts[i].can_mask |= CAN_RTR_FLAG;
             }
         }
-
-        return 0;
+        int ret = setsockopt(fd_, SOL_CAN_RAW, CAN_RAW_FILTER, filts.data(), sizeof(::can_filter) * num_configs);
+        return (ret < 0) ? -1 : 0;
     }
 
     /**
      * SocketCAN emulates the CAN filters in software, so the number of filters is virtually unlimited.
      * This method returns a constant value.
      */
-    static constexpr unsigned NumFilters = 8;
-    std::uint16_t getNumFilters() const override { return NumFilters; }
-
+    std::uint16_t getNumFilters() const override { return 255; }
 
     /**
      * Returns total number of errors of each kind detected since the object was created.
@@ -505,7 +450,7 @@ public:
     /**
      * Returns number of errors of each kind in a map.
      */
-    const decltype(errors_) & getErrors() const { return errors_; }
+    const decltype(errors_)& getErrors() const { return errors_; }
 
     int getFileDescriptor() const { return fd_; }
 
@@ -516,133 +461,73 @@ public:
      */
     static int openSocket(const std::string& iface_name)
     {
-        errno = 0;
-
         const int s = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
         if (s < 0)
         {
             return s;
         }
-
-        class RaiiCloser
-        {
-            int fd_;
-        public:
-            RaiiCloser(int filedesc) : fd_(filedesc)
-            {
-                assert(fd_ >= 0);
-            }
-            ~RaiiCloser()
-            {
-                if (fd_ >= 0)
-                {
-                    UAVCAN_TRACE("SocketCAN", "RaiiCloser: Closing fd %d", fd_);
-                    (void)::close(fd_);
-                }
-            }
-            void disarm() { fd_ = -1; }
-        } raii_closer(s);
-
         // Detect the iface index
         auto ifr = ::ifreq();
         if (iface_name.length() >= IFNAMSIZ)
         {
-            errno = ENAMETOOLONG;
-            return -1;
+            goto fail;
         }
         (void)std::strncpy(ifr.ifr_name, iface_name.c_str(), iface_name.length());
         if (::ioctl(s, SIOCGIFINDEX, &ifr) < 0 || ifr.ifr_ifindex < 0)
         {
-            return -1;
+            goto fail;
         }
-
-        // Bind to the specified CAN iface
+        // Bind to a CAN iface
         {
             auto addr = ::sockaddr_can();
             addr.can_family = AF_CAN;
             addr.can_ifindex = ifr.ifr_ifindex;
             if (::bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0)
             {
-                return -1;
+                goto fail;
             }
         }
-
         // Configure
         {
             const int on = 1;
             // Timestamping
             if (::setsockopt(s, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)) < 0)
             {
-                return -1;
+                goto fail;
             }
             // Socket loopback
             if (::setsockopt(s, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, &on, sizeof(on)) < 0)
             {
-                return -1;
+                goto fail;
             }
             // Non-blocking
-            if (::fcntl(s, F_SETFL, O_NONBLOCK) < 0)
+            if (::fcntl(s, F_SETFL , O_NONBLOCK) < 0)
             {
-                return -1;
+                goto fail;
             }
         }
-
-        // Validate the resulting socket
-        {
-            int socket_error = 0;
-            ::socklen_t errlen = sizeof(socket_error);
-            (void)::getsockopt(s, SOL_SOCKET, SO_ERROR, reinterpret_cast<void*>(&socket_error), &errlen);
-            if (socket_error != 0)
-            {
-                errno = socket_error;
-                return -1;
-            }
-        }
-
-        raii_closer.disarm();
         return s;
+
+    fail:
+        (void)::close(s);
+        return -1;
     }
 };
 
 /**
  * Multiplexing container for multiple SocketCAN sockets.
  * Uses ppoll() for multiplexing.
- *
- * When an interface becomes down/disconnected while the node is running,
- * the driver will silently exclude it from the IO loop and continue to run on the remaining interfaces.
- * When all interfaces become down/disconnected, the driver will throw @ref AllIfacesDownException
- * from @ref SocketCanDriver::select().
- * Whether a certain interface is down can be checked with @ref SocketCanDriver::isIfaceDown().
  */
 class SocketCanDriver : public uavcan::ICanDriver
 {
-    class IfaceWrapper : public SocketCanIface
-    {
-        bool down_ = false;
+public:
+    static constexpr unsigned MaxIfaces = uavcan::MaxCanIfaces;
 
-    public:
-        IfaceWrapper(const SystemClock& clock, int fd) : SocketCanIface(clock, fd) { }
-
-        void updateDownStatusFromPollResult(const ::pollfd& pfd)
-        {
-            assert(pfd.fd == this->getFileDescriptor());
-            if (!down_ && (pfd.revents & POLLERR))
-            {
-                int error = 0;
-                ::socklen_t errlen = sizeof(error);
-                (void)::getsockopt(pfd.fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<void*>(&error), &errlen);
-
-                down_ = error == ENETDOWN || error == ENODEV;
-
-                UAVCAN_TRACE("SocketCAN", "Iface %d is dead; error %d", this->getFileDescriptor(), error);
-            }
-        }
-
-        bool isDown() const { return down_; }
-    };
-
+private:
     const SystemClock& clock_;
-    std::vector<std::unique_ptr<IfaceWrapper>> ifaces_;
+    uavcan::LazyConstructor<SocketCanIface> ifaces_[MaxIfaces];
+    ::pollfd pollfds_[MaxIfaces];
+    std::uint8_t num_ifaces_ = 0;
 
 public:
     /**
@@ -651,7 +536,11 @@ public:
     explicit SocketCanDriver(const SystemClock& clock)
         : clock_(clock)
     {
-        ifaces_.reserve(uavcan::MaxCanIfaces);
+        for (auto& p : pollfds_)
+        {
+            p = ::pollfd();
+            p.fd = -1;
+        }
     }
 
     /**
@@ -666,7 +555,7 @@ public:
     {
         // Detecting whether we need to block at all
         bool need_block = (inout_masks.write == 0);    // Write queue is infinite
-        for (unsigned i = 0; need_block && (i < ifaces_.size()); i++)
+        for (unsigned i = 0; need_block && (i < num_ifaces_); i++)
         {
             const bool need_read = inout_masks.read  & (1 << i);
             if (need_read && ifaces_[i]->hasReadyRx())
@@ -678,29 +567,13 @@ public:
         if (need_block)
         {
             // Poll FD set setup
-            ::pollfd pollfds[uavcan::MaxCanIfaces] = {};
-            unsigned num_pollfds = 0;
-            IfaceWrapper* pollfd_index_to_iface[uavcan::MaxCanIfaces] = { };
-
-            for (unsigned i = 0; i < ifaces_.size(); i++)
+            for (unsigned i = 0; i < num_ifaces_; i++)
             {
-                if (!ifaces_[i]->isDown())
+                pollfds_[i].events = POLLIN;
+                if (ifaces_[i]->hasPendingTx() || (inout_masks.write & (1 << i)))
                 {
-                    pollfds[num_pollfds].fd = ifaces_[i]->getFileDescriptor();
-                    pollfds[num_pollfds].events = POLLIN;
-                    if (ifaces_[i]->hasReadyTx() || (inout_masks.write & (1U << i)))
-                    {
-                        pollfds[num_pollfds].events |= POLLOUT;
-                    }
-                    pollfd_index_to_iface[num_pollfds] = ifaces_[i].get();
-                    num_pollfds++;
+                    pollfds_[i].events |= POLLOUT;
                 }
-            }
-
-            // This is where we abort when the last iface goes down
-            if (num_pollfds == 0)
-            {
-                throw AllIfacesDownException();
             }
 
             // Timeout conversion
@@ -713,90 +586,75 @@ public:
             }
 
             // Blocking here
-            const int res = ::ppoll(pollfds, num_pollfds, &ts, nullptr);
+            const int res = ::ppoll(pollfds_, num_ifaces_, &ts, nullptr);
             if (res < 0)
             {
                 return res;
             }
 
             // Handling poll output
-            for (unsigned i = 0; i < num_pollfds; i++)
+            for (unsigned i = 0; i < num_ifaces_; i++)
             {
-                pollfd_index_to_iface[i]->updateDownStatusFromPollResult(pollfds[i]);
-
-                const bool poll_read  = pollfds[i].revents & POLLIN;
-                const bool poll_write = pollfds[i].revents & POLLOUT;
-                pollfd_index_to_iface[i]->poll(poll_read, poll_write);
+                const bool poll_read  = pollfds_[i].revents & POLLIN;
+                const bool poll_write = pollfds_[i].revents & POLLOUT;
+                ifaces_[i]->poll(poll_read, poll_write);
             }
         }
 
         // Writing the output masks
         inout_masks = uavcan::CanSelectMasks();
-        for (unsigned i = 0; i < ifaces_.size(); i++)
+        for (unsigned i = 0; i < num_ifaces_; i++)
         {
-            if (!ifaces_[i]->isDown())
-            {
-                inout_masks.write |= std::uint8_t(1U << i);     // Always ready to write if not down
-            }
+            const std::uint8_t iface_mask = 1 << i;
+            inout_masks.write |= iface_mask;           // Always ready to write
             if (ifaces_[i]->hasReadyRx())
             {
-                inout_masks.read |= std::uint8_t(1U << i);      // Readability depends only on RX buf, even if down
+                inout_masks.read |= iface_mask;
             }
         }
-
-        // Return value is irrelevant as long as it's non-negative
-        return ifaces_.size();
+        // Since all ifaces are always ready to write, return value is always the same
+        return num_ifaces_;
     }
 
     SocketCanIface* getIface(std::uint8_t iface_index) override
     {
-        return (iface_index >= ifaces_.size()) ? nullptr : ifaces_[iface_index].get();
+        return (iface_index >= num_ifaces_) ? nullptr : static_cast<SocketCanIface*>(ifaces_[iface_index]);
     }
 
-    std::uint8_t getNumIfaces() const override { return ifaces_.size(); }
+    std::uint8_t getNumIfaces() const override { return num_ifaces_; }
 
     /**
      * Adds one iface by name. Will fail if there are @ref MaxIfaces ifaces registered already.
      * @param iface_name E.g. "can0", "vcan1"
-     * @return Negative on error, interface index on success.
+     * @return Negative on error, zero on success.
      * @throws uavcan_linux::Exception.
      */
     int addIface(const std::string& iface_name)
     {
-        if (ifaces_.size() >= uavcan::MaxCanIfaces)
+        if (num_ifaces_ >= MaxIfaces)
         {
             return -1;
         }
-
         // Open the socket
         const int fd = SocketCanIface::openSocket(iface_name);
         if (fd < 0)
         {
             return fd;
         }
-
         // Construct the iface - upon successful construction the iface will take ownership of the fd.
         try
         {
-            ifaces_.emplace_back(new IfaceWrapper(clock_, fd));
+            ifaces_[num_ifaces_].construct<const SystemClock&, int>(clock_, fd);
         }
         catch (...)
         {
             (void)::close(fd);
             throw;
         }
-
-        UAVCAN_TRACE("SocketCAN", "New iface '%s' fd %d", iface_name.c_str(), fd);
-
-        return ifaces_.size() - 1;
-    }
-
-    /**
-     * Returns false if the specified interface is functioning, true if it became unavailable.
-     */
-    bool isIfaceDown(std::uint8_t iface_index) const
-    {
-        return ifaces_.at(iface_index)->isDown();
+        // Init pollfd
+        pollfds_[num_ifaces_].fd = fd;
+        num_ifaces_++;
+        return 0;
     }
 };
 

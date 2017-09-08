@@ -102,7 +102,7 @@ void GazeboImuPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) {
       event::Events::ConnectWorldUpdateBegin(
           boost::bind(&GazeboImuPlugin::OnUpdate, this, _1));
 
-  imu_pub_ = node_handle_->Advertise<sensor_msgs::msgs::Imu>("~/" + model_->GetName() + imu_topic_, 1);
+  imu_pub_ = node_handle_->Advertise<sensor_msgs::msgs::Imu>(imu_topic_, 1);
 
   // Fill imu message.
   // imu_message_.header.frame_id = frame_id_; TODO Add header
@@ -312,7 +312,6 @@ void GazeboImuPlugin::OnUpdate(const common::UpdateInfo& _info) {
   imu_message_.set_allocated_linear_acceleration(linear_acceleration);
   imu_message_.set_allocated_angular_velocity(angular_velocity);
 
-  // gzerr << "publishing: " << imu_message_.linear_acceleration().z() << "\n";
   imu_pub_->Publish(imu_message_);
 }
 

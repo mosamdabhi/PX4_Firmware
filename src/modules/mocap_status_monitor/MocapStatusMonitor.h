@@ -82,6 +82,5 @@ private:
   float battery_ignore;
   float battery_low;
   float battery_critical;
-  int board_type;
 };
 #endif

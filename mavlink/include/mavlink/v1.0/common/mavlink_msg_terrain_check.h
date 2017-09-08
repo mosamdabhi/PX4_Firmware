@@ -2,32 +2,20 @@
 
 #define MAVLINK_MSG_ID_TERRAIN_CHECK 135
 
-typedef struct MAVLINK_PACKED __mavlink_terrain_check_t
+typedef struct __mavlink_terrain_check_t
 {
  int32_t lat; /*< Latitude (degrees *10^7)*/
  int32_t lon; /*< Longitude (degrees *10^7)*/
 } mavlink_terrain_check_t;
 
 #define MAVLINK_MSG_ID_TERRAIN_CHECK_LEN 8
-#define MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN 8
 #define MAVLINK_MSG_ID_135_LEN 8
-#define MAVLINK_MSG_ID_135_MIN_LEN 8
 
 #define MAVLINK_MSG_ID_TERRAIN_CHECK_CRC 203
 #define MAVLINK_MSG_ID_135_CRC 203
 
 
 
-#if MAVLINK_COMMAND_24BIT
-#define MAVLINK_MESSAGE_INFO_TERRAIN_CHECK { \
-	135, \
-	"TERRAIN_CHECK", \
-	2, \
-	{  { "lat", NULL, MAVLINK_TYPE_INT32_T, 0, 0, offsetof(mavlink_terrain_check_t, lat) }, \
-         { "lon", NULL, MAVLINK_TYPE_INT32_T, 0, 4, offsetof(mavlink_terrain_check_t, lon) }, \
-         } \
-}
-#else
 #define MAVLINK_MESSAGE_INFO_TERRAIN_CHECK { \
 	"TERRAIN_CHECK", \
 	2, \
@@ -35,7 +23,7 @@ typedef struct MAVLINK_PACKED __mavlink_terrain_check_t
          { "lon", NULL, MAVLINK_TYPE_INT32_T, 0, 4, offsetof(mavlink_terrain_check_t, lon) }, \
          } \
 }
-#endif
+
 
 /**
  * @brief Pack a terrain_check message
@@ -65,7 +53,11 @@ static inline uint16_t mavlink_msg_terrain_check_pack(uint8_t system_id, uint8_t
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_TERRAIN_CHECK;
-    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#else
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
+#endif
 }
 
 /**
@@ -97,7 +89,11 @@ static inline uint16_t mavlink_msg_terrain_check_pack_chan(uint8_t system_id, ui
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_TERRAIN_CHECK;
-    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#else
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
+#endif
 }
 
 /**
@@ -143,27 +139,21 @@ static inline void mavlink_msg_terrain_check_send(mavlink_channel_t chan, int32_
 	_mav_put_int32_t(buf, 0, lat);
 	_mav_put_int32_t(buf, 4, lon);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, buf, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, buf, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, buf, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
+#endif
 #else
 	mavlink_terrain_check_t packet;
 	packet.lat = lat;
 	packet.lon = lon;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)&packet, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
-#endif
-}
-
-/**
- * @brief Send a terrain_check message
- * @param chan MAVLink channel to send the message
- * @param struct The MAVLink struct to serialize
- */
-static inline void mavlink_msg_terrain_check_send_struct(mavlink_channel_t chan, const mavlink_terrain_check_t* terrain_check)
-{
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_terrain_check_send(chan, terrain_check->lat, terrain_check->lon);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)&packet, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
 #else
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)terrain_check, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)&packet, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
+#endif
 #endif
 }
 
@@ -182,13 +172,21 @@ static inline void mavlink_msg_terrain_check_send_buf(mavlink_message_t *msgbuf,
 	_mav_put_int32_t(buf, 0, lat);
 	_mav_put_int32_t(buf, 4, lon);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, buf, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, buf, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, buf, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
+#endif
 #else
 	mavlink_terrain_check_t *packet = (mavlink_terrain_check_t *)msgbuf;
 	packet->lat = lat;
 	packet->lon = lon;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)packet, MAVLINK_MSG_ID_TERRAIN_CHECK_MIN_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)packet, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN, MAVLINK_MSG_ID_TERRAIN_CHECK_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TERRAIN_CHECK, (const char *)packet, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
+#endif
 #endif
 }
 #endif
@@ -226,12 +224,10 @@ static inline int32_t mavlink_msg_terrain_check_get_lon(const mavlink_message_t*
  */
 static inline void mavlink_msg_terrain_check_decode(const mavlink_message_t* msg, mavlink_terrain_check_t* terrain_check)
 {
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
+#if MAVLINK_NEED_BYTE_SWAP
 	terrain_check->lat = mavlink_msg_terrain_check_get_lat(msg);
 	terrain_check->lon = mavlink_msg_terrain_check_get_lon(msg);
 #else
-        uint8_t len = msg->len < MAVLINK_MSG_ID_TERRAIN_CHECK_LEN? msg->len : MAVLINK_MSG_ID_TERRAIN_CHECK_LEN;
-        memset(terrain_check, 0, MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
-	memcpy(terrain_check, _MAV_PAYLOAD(msg), len);
+	memcpy(terrain_check, _MAV_PAYLOAD(msg), MAVLINK_MSG_ID_TERRAIN_CHECK_LEN);
 #endif
 }

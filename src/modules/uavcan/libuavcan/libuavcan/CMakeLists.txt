@@ -14,10 +14,10 @@ endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 if (build_type_lower STREQUAL "debug")
     set(DEBUG_BUILD 1)
-    message(STATUS "Debug build")
 else ()
     set(DEBUG_BUILD 0)
 endif ()
+message(STATUS "Debug build: ${DEBUG_BUILD}")
 
 project(libuavcan)
 
@@ -31,22 +31,11 @@ endif ()
 # DSDL compiler invocation
 # Probably output files should be saved into CMake output dir?
 #
-execute_process(COMMAND ./setup.py build WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsdl_compiler OUTPUT_QUIET)
+execute_process(COMMAND ./setup.py build WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dsdl_compiler)
 set(DSDLC_INPUTS "test/dsdl_test/root_ns_a" "test/dsdl_test/root_ns_b" "${CMAKE_CURRENT_SOURCE_DIR}/../dsdl/uavcan")
 set(DSDLC_OUTPUT "include/dsdlc_generated")
-
-set(DSDLC_INPUT_FILES "")
-foreach(DSDLC_INPUT ${DSDLC_INPUTS})
-    file(GLOB_RECURSE DSDLC_NEW_INPUT_FILES ${CMAKE_CURRENT_SOURCE_DIR} "${DSDLC_INPUT}/*.uavcan")
-    set(DSDLC_INPUT_FILES ${DSDLC_INPUT_FILES} ${DSDLC_NEW_INPUT_FILES})
-endforeach(DSDLC_INPUT)
-add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/libuavcan_dsdlc_run.stamp
-                   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/dsdl_compiler/libuavcan_dsdlc ${DSDLC_INPUTS} -O${DSDLC_OUTPUT}
-                   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_BINARY_DIR}/libuavcan_dsdlc_run.stamp
-                   DEPENDS ${DSDLC_INPUT_FILES}
-                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                   COMMENT "Running dsdl compiler")
-add_custom_target(libuavcan_dsdlc DEPENDS ${CMAKE_BINARY_DIR}/libuavcan_dsdlc_run.stamp)
+add_custom_target(libuavcan_dsdlc dsdl_compiler/libuavcan_dsdlc ${DSDLC_INPUTS} -O${DSDLC_OUTPUT}
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${DSDLC_OUTPUT})
 
 #
@@ -103,16 +92,9 @@ function(add_libuavcan_test name library flags) # Adds GTest executable and crea
 
     # Tests run automatically upon successful build
     # If failing tests need to be investigated with debugger, use 'make --ignore-errors'
-    if (CONTINUOUS_INTEGRATION_BUILD)
-        # Don't redirect test output, and don't run tests suffixed with "RealTime"
-        add_custom_command(TARGET ${name} POST_BUILD
-                           COMMAND ./${name} --gtest_filter=-*RealTime
-                           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    else ()
-        add_custom_command(TARGET ${name} POST_BUILD
-                           COMMAND ./${name} 1>"${name}.log" 2>&1
-                           WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    endif()
+    add_custom_command(TARGET ${name} POST_BUILD
+                       COMMAND ./${name} 1>"${name}.log" 2>&1
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endfunction()
 
 if (DEBUG_BUILD)

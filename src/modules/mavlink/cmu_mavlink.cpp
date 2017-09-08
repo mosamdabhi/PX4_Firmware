@@ -41,7 +41,6 @@ void CMUMavlink::handle_message(const mavlink_message_t *msg)
 {
   switch (msg->msgid)
   {
-    printf("Mav msg received cmu %d\n", msg->msgid);
     case MAVLINK_MSG_ID_CASCADED_CMD:
       handle_message_cascaded_cmd(msg);
       break;
@@ -165,7 +164,7 @@ void CMUMavlink::handle_message_mocap_rpm_cmd(const mavlink_message_t *msg)
 
   int inst; // Not used
   orb_publish_auto(ORB_ID(mocap_rpm_command), &mocap_rpm_cmd_pub,
-                   &mocap_rpm_cmd, &inst, ORB_PRIO_HIGH);  
+                   &mocap_rpm_cmd, &inst, ORB_PRIO_HIGH);
 }
 
 void CMUMavlink::handle_message_mocap_timesync(const mavlink_message_t *msg)
@@ -189,8 +188,7 @@ void CMUMavlink::handle_message_mocap_timesync(const mavlink_message_t *msg)
     rsync.tc1 = now_ns;
     rsync.ts1 = tsync.ts1;
 
-    //mavlink->send_message(MAVLINK_MSG_ID_TIMESYNC, &rsync);
-    mavlink_msg_timesync_send_struct(mavlink->get_channel(), &rsync);
+    mavlink->send_message(MAVLINK_MSG_ID_TIMESYNC, &rsync);
     return;
   }
   else if (tsync.tc1 > 0)
@@ -236,7 +234,7 @@ void CMUMavlink::handle_message_mocap_multi_pose(const mavlink_message_t *msg)
   // Use the component ID to identify the mocap system
   att_pos_mocap.id = msg->compid;
 
-  att_pos_mocap.timestamp = hrt_absolute_time(); // Monotonic time
+  att_pos_mocap.timestamp_boot = hrt_absolute_time(); // Monotonic time
   att_pos_mocap.timestamp_computer = sync_stamp(mpose.time_usec); // Synced time
 
   unsigned int k = 4*indx;

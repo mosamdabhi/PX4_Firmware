@@ -48,7 +48,9 @@
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV1, 0);
@@ -59,7 +61,9 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV1, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV2, 0);
@@ -70,7 +74,9 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV2, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV3, 0);
@@ -81,7 +87,9 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV3, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV4, 0);
@@ -92,7 +100,9 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV4, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV5, 0);
@@ -103,7 +113,9 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV5, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV6, 0);
@@ -114,7 +126,9 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV6, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV7, 0);
@@ -125,17 +139,50 @@ PARAM_DEFINE_INT32(PWM_MAIN_REV7, 0);
  * Set to 1 to invert the channel, 0 for default direction.
  *
  * @reboot_required true
- * @boolean
+ *
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_MAIN_REV8, 0);
 
 /**
- * S.BUS out
+ * Enable S.BUS out
  *
  * Set to 1 to enable S.BUS version 1 output instead of RSSI.
  *
- * @boolean
+ * @min 0
+ * @max 1
  * @group PWM Outputs
  */
 PARAM_DEFINE_INT32(PWM_SBUS_MODE, 0);
+
+/**
+* The coefficient A in the relationship RPM = A * PWM + B * voltage + C
+*
+* @unit
+* @min -99999.9
+* @max 99999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_RPM_PER_PWM, 0.0f);
+
+/**
+* The coefficient B in the relationship RPM = A * PWM + B * voltage + C
+*
+* @unit 1/volt
+* @min -99999.9
+* @max 99999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_RPM_PER_VOLT, 0.0f);
+
+/**
+* The coefficient C in the relationship RPM = A * PWM + B * voltage + C
+*
+* @unit
+* @min -99999.9
+* @max 99999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_RPM_AT_ZERO_PWM_AND_VOLTS, 0.0f);

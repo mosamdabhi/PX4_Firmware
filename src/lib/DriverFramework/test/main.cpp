@@ -29,10 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  ****************************************************************************/
-extern int doTest();
+extern int do_test();
 
 int main()
 {
-	return doTest();
+	return do_test();
 }
 

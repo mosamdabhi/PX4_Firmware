@@ -235,7 +235,7 @@ protected:
 
 private:
 
-	/* do not allow to copy due to pointer data members */
+	/* do not allow to copy due to prt data members */
 	Mixer(const Mixer &);
 	Mixer &operator=(const Mixer &);
 };
@@ -427,7 +427,7 @@ public:
 protected:
 
 private:
-	mixer_simple_s			*_pinfo;
+	mixer_simple_s			*_info;
 
 	static int			parse_output_scaler(const char *buf, unsigned &buflen, mixer_scaler_s &scaler);
 	static int			parse_control_scaler(const char *buf,
@@ -484,15 +484,32 @@ public:
 	 * @param idle_speed		Minimum rotor control output value; usually
 	 *				tuned to ensure that rotors never stall at the
 	 * 				low end of their control range.
-	 */
+	 * @param pwm_min      Minimum PWM signal in microseconds
+   * @param pwm_max      Maximum PWM signal in microseconds
+   * @param rpm_max      Maximum RPM
+   * @param voltage_max  Maximum battery voltage in volts
+   * @param cT           Thrust coefficient (force = cT*RPM^2)
+   * @param rpm_per_volt Coefficient A in the relationship RPM = A*volts + B*pwm + C
+   * @param rpm_per_pwm  Coefficient B in the relationship RPM = A*volts + B*pwm + C
+   * @param rpm_at_zero_pwm_and_volts Coefficient C in the relationship RPM = A*volts + B*pwm + C
+   */
 	MultirotorMixer(ControlCallback control_cb,
-			uintptr_t cb_handle,
-			MultirotorGeometry geometry,
-			float roll_scale,
-			float pitch_scale,
-			float yaw_scale,
-			float idle_speed);
-	~MultirotorMixer();
+		uintptr_t cb_handle,
+		MultirotorGeometry geometry,
+		float roll_scale,
+		float pitch_scale,
+		float yaw_scale,
+		float idle_speed,
+    float pwm_min,
+    float pwm_max,
+    float rpm_max,
+    float voltage_max,
+    float cT,
+    float rpm_per_volt,
+    float rpm_per_pwm,
+    float rpm_at_zero_pwm_and_volts);
+
+  ~MultirotorMixer();
 
 	/**
 	 * Factory method.
@@ -523,6 +540,16 @@ private:
 	float				_pitch_scale;
 	float				_yaw_scale;
 	float				_idle_speed;
+
+  float       _pwm_min;
+  float       _pwm_max;
+  float       _rpm_max;
+  float       _cT;
+  float       _f_max;
+  float       _voltage_max;
+  float       _rpm_coeff;
+  float       _voltage_coeff;
+  float       _affine_coeff;
 
 	orb_advert_t			_limits_pub;
 	multirotor_motor_limits_s 	_limits;

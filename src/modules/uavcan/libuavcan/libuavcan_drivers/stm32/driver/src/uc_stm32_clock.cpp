@@ -405,6 +405,8 @@ void setUtcSyncParams(const UtcSyncParams& params)
 
 SystemClock& SystemClock::instance()
 {
+    MutexLocker mlocker(clock::mutex);
+
     static union SystemClockStorage
     {
         uavcan::uint8_t buffer[sizeof(SystemClock)];
@@ -416,7 +418,6 @@ SystemClock& SystemClock::instance()
 
     if (!clock::initialized)
     {
-        MutexLocker mlocker(clock::mutex);
         clock::init();
         new (ptr)SystemClock();
     }

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2013-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,9 +63,9 @@
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <systemlib/systemlib.h>
-#include <systemlib/mavlink_log.h>
 #include <mathlib/mathlib.h>
 #include <mathlib/math/filter/LowPassFilter2p.hpp>
+#include <mavlink/mavlink_log.h>
 #include <platforms/px4_defines.h>
 
 static uint64_t IMUusec = 0;
@@ -132,12 +132,12 @@ AttitudePositionEstimatorEKF::AttitudePositionEstimatorEKF() :
 	_airspeed_sub(-1),
 	_baro_sub(-1),
 	_gps_sub(-1),
-	_vehicle_status_sub(-1),
-	_vehicle_land_detected_sub(-1),
+	_vstatus_sub(-1),
 	_params_sub(-1),
 	_manual_control_sub(-1),
 	_mission_sub(-1),
 	_home_sub(-1),
+	_landDetectorSub(-1),
 	_armedSub(-1),
 
 	/* publications */
@@ -155,13 +155,13 @@ AttitudePositionEstimatorEKF::AttitudePositionEstimatorEKF() :
 	_mag{},
 	_airspeed{},
 	_baro{},
-	_vehicle_status{},
-	_vehicle_land_detected{},
+	_vstatus{},
 	_global_pos{},
 	_local_pos{},
 	_gps{},
 	_wind{},
 	_distance{},
+	_landDetector{},
 	_armed{},
 
 	_last_accel(0),
@@ -176,23 +176,14 @@ AttitudePositionEstimatorEKF::AttitudePositionEstimatorEKF() :
 	_baro_gps_offset(0.0f),
 
 	/* performance counters */
-	_loop_perf(perf_alloc(PC_ELAPSED, "ekf_dt")),
-#if 0
+	_loop_perf(perf_alloc(PC_ELAPSED, "ekf_att_pos_estimator")),
 	_loop_intvl(perf_alloc(PC_INTERVAL, "ekf_att_pos_est_interval")),
 	_perf_gyro(perf_alloc(PC_INTERVAL, "ekf_att_pos_gyro_upd")),
 	_perf_mag(perf_alloc(PC_INTERVAL, "ekf_att_pos_mag_upd")),
 	_perf_gps(perf_alloc(PC_INTERVAL, "ekf_att_pos_gps_upd")),
 	_perf_baro(perf_alloc(PC_INTERVAL, "ekf_att_pos_baro_upd")),
 	_perf_airspeed(perf_alloc(PC_INTERVAL, "ekf_att_pos_aspd_upd")),
-#else
-	_loop_intvl(nullptr),
-	_perf_gyro(nullptr),
-	_perf_mag(nullptr),
-	_perf_gps(nullptr),
-	_perf_baro(nullptr),
-	_perf_airspeed(nullptr),
-#endif
-	_perf_reset(perf_alloc(PC_COUNT, "ekf_rst")),
+	_perf_reset(perf_alloc(PC_COUNT, "ekf_att_pos_reset")),
 
 	/* states */
 	_gps_alt_filt(0.0f),
@@ -205,17 +196,24 @@ AttitudePositionEstimatorEKF::AttitudePositionEstimatorEKF() :
 	_filter_start_time(0),
 	_last_sensor_timestamp(hrt_absolute_time()),
 	_distance_last_valid(0),
+	_voter_gyro(3),
+	_voter_accel(3),
+	_voter_mag(3),
+	_gyro_main(-1),
+	_accel_main(-1),
+	_mag_main(-1),
 	_data_good(false),
+	_failsafe(false),
+	_vibration_warning(false),
 	_ekf_logging(true),
 	_debug(0),
-	_was_landed(true),
 
 	_newHgtData(false),
 	_newAdsData(false),
 	_newDataMag(false),
 	_newRangeData(false),
-	_mavlink_log_pub(nullptr),
 
+	_mavlink_fd(-1),
 	_mag_offset_x(this, "MAGB_X"),
 	_mag_offset_y(this, "MAGB_Y"),
 	_mag_offset_z(this, "MAGB_Z"),
@@ -228,6 +226,8 @@ AttitudePositionEstimatorEKF::AttitudePositionEstimatorEKF() :
 	_LP_att_Q(250.0f, 20.0f),
 	_LP_att_R(250.0f, 20.0f)
 {
+	_voter_mag.set_timeout(200000);
+
 	_terrain_estimator = new TerrainEstimator();
 
 	_parameter_handles.vel_delay_ms = param_find("PE_VEL_DELAY_MS");
@@ -248,7 +248,6 @@ AttitudePositionEstimatorEKF::AttitudePositionEstimatorEKF() :
 	_parameter_handles.magb_pnoise = param_find("PE_MAGB_PNOISE");
 	_parameter_handles.eas_noise = param_find("PE_EAS_NOISE");
 	_parameter_handles.pos_stddev_threshold = param_find("PE_POSDEV_INIT");
-	_parameter_handles.airspeed_mode = param_find("FW_AIRSPD_MODE");
 
 	/* indicate consumers that the current position data is not valid */
 	_gps.eph = 10000.0f;
@@ -316,7 +315,6 @@ int AttitudePositionEstimatorEKF::parameters_update()
 	param_get(_parameter_handles.magb_pnoise, &(_parameters.magb_pnoise));
 	param_get(_parameter_handles.eas_noise, &(_parameters.eas_noise));
 	param_get(_parameter_handles.pos_stddev_threshold, &(_parameters.pos_stddev_threshold));
-	param_get(_parameter_handles.airspeed_mode, &_parameters.airspeed_mode);
 
 	if (_ekf) {
 		// _ekf->yawVarScale = 1.0f;
@@ -349,31 +347,22 @@ int AttitudePositionEstimatorEKF::parameters_update()
 
 void AttitudePositionEstimatorEKF::vehicle_status_poll()
 {
-	bool updated;
+	bool vstatus_updated;
 
-	orb_check(_vehicle_status_sub, &updated);
+	/* Check HIL state if vehicle status has changed */
+	orb_check(_vstatus_sub, &vstatus_updated);
 
-	if (updated) {
+	bool landed = _vstatus.condition_landed;
 
-		orb_copy(ORB_ID(vehicle_status), _vehicle_status_sub, &_vehicle_status);
+	if (vstatus_updated) {
+
+		orb_copy(ORB_ID(vehicle_status), _vstatus_sub, &_vstatus);
 
 		// Tell EKF that the vehicle is a fixed wing or multi-rotor
-		_ekf->setIsFixedWing(!_vehicle_status.is_rotary_wing);
-	}
-}
+		_ekf->setIsFixedWing(!_vstatus.is_rotary_wing);
 
-void AttitudePositionEstimatorEKF::vehicle_land_detected_poll()
-{
-	bool updated;
-
-	orb_check(_vehicle_land_detected_sub, &updated);
-
-	if (updated) {
-
-		orb_copy(ORB_ID(vehicle_land_detected), _vehicle_land_detected_sub, &_vehicle_land_detected);
-
-		// Save params on landed and previously not landed
-		if (_vehicle_land_detected.landed && !_was_landed) {
+		// Save params on landed
+		if (!landed && _vstatus.condition_landed) {
 			_mag_offset_x.set(_ekf->magBias.x);
 			_mag_offset_x.commit();
 			_mag_offset_y.set(_ekf->magBias.y);
@@ -381,8 +370,6 @@ void AttitudePositionEstimatorEKF::vehicle_land_detected_poll()
 			_mag_offset_z.set(_ekf->magBias.z);
 			_mag_offset_z.commit();
 		}
-
-		_was_landed = _vehicle_land_detected.landed;
 	}
 }
 
@@ -417,7 +404,8 @@ int AttitudePositionEstimatorEKF::check_filter_state()
 
 		// Do not warn about accel offset if we have no position updates
 		if (!(warn_index == 5 && _ekf->staticMode)) {
-			mavlink_and_console_log_critical(&_mavlink_log_pub, "[ekf check] %s", feedback[warn_index]);
+			PX4_WARN("reset: %s", feedback[warn_index]);
+			mavlink_log_critical(_mavlink_fd, "[ekf check] %s", feedback[warn_index]);
 		}
 	}
 
@@ -438,7 +426,7 @@ int AttitudePositionEstimatorEKF::check_filter_state()
 		// Set up height correctly
 		orb_copy(ORB_ID(sensor_baro), _baro_sub, &_baro);
 
-		initReferencePosition(_gps.timestamp, _gpsIsGood, lat, lon, gps_alt, _baro.altitude);
+		initReferencePosition(_gps.timestamp_position, _gpsIsGood, lat, lon, gps_alt, _baro.altitude);
 
 	} else if (_ekf_logging) {
 		_ekf->GetFilterState(&ekf_report);
@@ -523,6 +511,8 @@ void AttitudePositionEstimatorEKF::task_main_trampoline(int argc, char *argv[])
 
 void AttitudePositionEstimatorEKF::task_main()
 {
+	_mavlink_fd = px4_open(MAVLINK_LOG_DEVICE, 0);
+
 	_ekf = new AttPosEKF();
 
 	if (!_ekf) {
@@ -539,10 +529,10 @@ void AttitudePositionEstimatorEKF::task_main()
 	_baro_sub = orb_subscribe_multi(ORB_ID(sensor_baro), 0);
 	_airspeed_sub = orb_subscribe(ORB_ID(airspeed));
 	_gps_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
-	_vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
-	_vehicle_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
+	_vstatus_sub = orb_subscribe(ORB_ID(vehicle_status));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_home_sub = orb_subscribe(ORB_ID(home_position));
+	_landDetectorSub = orb_subscribe(ORB_ID(vehicle_land_detected));
 	_armedSub = orb_subscribe(ORB_ID(actuator_armed));
 
 	_sensor_combined_sub = orb_subscribe(ORB_ID(sensor_combined));
@@ -599,19 +589,28 @@ void AttitudePositionEstimatorEKF::task_main()
 		if (fds[1].revents & POLLIN) {
 
 			/* check vehicle status for changes to publication state */
-			bool prev_hil = (_vehicle_status.hil_state == vehicle_status_s::HIL_STATE_ON);
+			bool prev_hil = (_vstatus.hil_state == vehicle_status_s::HIL_STATE_ON);
 			vehicle_status_poll();
-			vehicle_land_detected_poll();
 
 			perf_count(_perf_gyro);
 
 			/* Reset baro reference if switching to HIL, reset sensor states */
-			if (!prev_hil && (_vehicle_status.hil_state == vehicle_status_s::HIL_STATE_ON)) {
+			if (!prev_hil && (_vstatus.hil_state == vehicle_status_s::HIL_STATE_ON)) {
 				/* system is in HIL now, wait for measurements to come in one last round */
 				usleep(60000);
 
+				/* HIL is slow, set permissive timeouts */
+				_voter_gyro.set_timeout(500000);
+				_voter_accel.set_timeout(500000);
+				_voter_mag.set_timeout(500000);
+
 				/* now read all sensor publications to ensure all real sensor data is purged */
 				orb_copy(ORB_ID(sensor_combined), _sensor_combined_sub, &_sensor_combined);
+
+				/* set sensors to de-initialized state */
+				_gyro_main = -1;
+				_accel_main = -1;
+				_mag_main = -1;
 
 				_baro_init = false;
 				_gps_initialized = false;
@@ -644,9 +643,7 @@ void AttitudePositionEstimatorEKF::task_main()
 			 *    We run the filter only once all data has been fetched
 			 **/
 
-			if (_baro_init && _sensor_combined.timestamp &&
-					_sensor_combined.accelerometer_timestamp_relative != sensor_combined_s::RELATIVE_TIMESTAMP_INVALID &&
-					_sensor_combined.magnetometer_timestamp_relative != sensor_combined_s::RELATIVE_TIMESTAMP_INVALID) {
+			if (_baro_init && (_gyro_main >= 0) && (_accel_main >= 0) && (_mag_main >= 0)) {
 
 				// maintain filtered baro and gps altitudes to calculate weather offset
 				// baro sample rate is ~70Hz and measurement bandwidth is high
@@ -686,6 +683,8 @@ void AttitudePositionEstimatorEKF::task_main()
 
 					_filter_ref_offset = -_baro.altitude;
 
+					PX4_INFO("filter ref off: baro_alt: %8.4f", (double)_filter_ref_offset);
+
 				} else {
 
 					if (!_gps_initialized && _gpsIsGood) {
@@ -694,7 +693,7 @@ void AttitudePositionEstimatorEKF::task_main()
 					}
 
 					// Check if on ground - status is used by covariance prediction
-					_ekf->setOnGround(_vehicle_land_detected.landed);
+					_ekf->setOnGround(_landDetector.landed);
 
 					// We're apparently initialized in this case now
 					// check (and reset the filter as needed)
@@ -770,6 +769,7 @@ void AttitudePositionEstimatorEKF::initReferencePosition(hrt_abstime timestamp,
 		_local_pos.ref_timestamp = timestamp;
 
 		map_projection_init(&_pos_ref, lat, lon);
+		mavlink_and_console_log_info(_mavlink_fd, "[ekf] ref: LA %.4f,LO %.4f,ALT %.2f", lat, lon, (double)gps_alt);
 	}
 }
 
@@ -803,7 +803,7 @@ void AttitudePositionEstimatorEKF::initializeGPS()
 
 	_ekf->InitialiseFilter(initVelNED, math::radians(lat), math::radians(lon) - M_PI, gps_alt, declination);
 
-	initReferencePosition(_gps.timestamp, _gpsIsGood, lat, lon, gps_alt, _baro.altitude);
+	initReferencePosition(_gps.timestamp_position, _gpsIsGood, lat, lon, gps_alt, _baro.altitude);
 
 #if 0
 	PX4_INFO("HOME/REF: LA %8.4f,LO %8.4f,ALT %8.2f V: %8.4f %8.4f %8.4f", lat, lon, (double)gps_alt,
@@ -904,25 +904,17 @@ void AttitudePositionEstimatorEKF::publishControlState()
 	_ctrl_state.q[2] = _ekf->states[2];
 	_ctrl_state.q[3] = _ekf->states[3];
 
-	// use estimated velocity for airspeed estimate
-	if (_parameters.airspeed_mode == control_state_s::AIRSPD_MODE_MEAS) {
-		// use measured airspeed
-		if (PX4_ISFINITE(_airspeed.indicated_airspeed_m_s) && hrt_absolute_time() - _airspeed.timestamp < 1e6
-		    && _airspeed.timestamp > 0) {
-			_ctrl_state.airspeed = _airspeed.indicated_airspeed_m_s;
-			_ctrl_state.airspeed_valid = true;
-		}
+	/* Airspeed (Groundspeed - Windspeed) */
+	//_ctrl_state.airspeed = sqrt(pow(_ekf->states[4] -  _ekf->states[14], 2) + pow(_ekf->states[5] - _ekf->states[15], 2) + pow(_ekf->states[6], 2));
+	// the line above was introduced by the control state PR. The airspeed it gives is totally wrong and leads to horrible flight performance in SITL
+	// and in outdoor tests
+	if (PX4_ISFINITE(_airspeed.indicated_airspeed_m_s) && hrt_absolute_time() - _airspeed.timestamp < 1e6
+	    && _airspeed.timestamp > 0) {
+		_ctrl_state.airspeed = _airspeed.indicated_airspeed_m_s;
+		_ctrl_state.airspeed_valid = true;
 
-	} else if (_parameters.airspeed_mode == control_state_s::AIRSPD_MODE_EST) {
-		if (_local_pos.v_xy_valid && _local_pos.v_z_valid) {
-			_ctrl_state.airspeed = sqrtf(_ekf->states[4] * _ekf->states[4]
-				+ _ekf->states[5] * _ekf->states[5] + _ekf->states[6] * _ekf->states[6]);
-			_ctrl_state.airspeed_valid = true;
-		}
-
-	} else if (_parameters.airspeed_mode == control_state_s::AIRSPD_MODE_DISABLED) {
-		// do nothing, airspeed has been declared as non-valid above, controllers
-		// will handle this assuming always trim airspeed
+	} else {
+		_ctrl_state.airspeed_valid = false;
 	}
 
 	/* Attitude Rates */
@@ -1050,7 +1042,7 @@ void AttitudePositionEstimatorEKF::publishGlobalPosition()
 
 	if (!_local_pos.xy_global ||
 	    !_local_pos.v_xy_valid ||
-	    _gps.timestamp == 0 ||
+	    _gps.timestamp_position == 0 ||
 	    (dtLastGoodGPS >= POS_RESET_THRESHOLD)) {
 
 		_global_pos.eph = EPH_LARGE_VALUE;
@@ -1316,7 +1308,7 @@ void AttitudePositionEstimatorEKF::print_status()
 
 	PX4_INFO("states: %s %s %s %s %s %s %s %s %s %s",
 		 (_ekf->statesInitialised) ? "INITIALIZED" : "NON_INIT",
-		 (_vehicle_land_detected.landed) ? "ON_GROUND" : "AIRBORNE",
+		 (_landDetector.landed) ? "ON_GROUND" : "AIRBORNE",
 		 (_ekf->fuseVelData) ? "FUSE_VEL" : "INH_VEL",
 		 (_ekf->fusePosData) ? "FUSE_POS" : "INH_POS",
 		 (_ekf->fuseHgtData) ? "FUSE_HGT" : "INH_HGT",
@@ -1325,6 +1317,13 @@ void AttitudePositionEstimatorEKF::print_status()
 		 (_ekf->useAirspeed) ? "USE_AIRSPD" : "IGN_AIRSPD",
 		 (_ekf->useCompass) ? "USE_COMPASS" : "IGN_COMPASS",
 		 (_ekf->staticMode) ? "STATIC_MODE" : "DYNAMIC_MODE");
+
+	PX4_INFO("gyro status:");
+	_voter_gyro.print();
+	PX4_INFO("accel status:");
+	_voter_accel.print();
+	PX4_INFO("mag status:");
+	_voter_mag.print();
 }
 
 void AttitudePositionEstimatorEKF::pollData()
@@ -1357,37 +1356,112 @@ void AttitudePositionEstimatorEKF::pollData()
 	/* fill in last data set */
 	_ekf->dtIMU = deltaT;
 
-	_ekf->angRate.x = _sensor_combined.gyro_rad[0];
-	_ekf->angRate.y = _sensor_combined.gyro_rad[1];
-	_ekf->angRate.z = _sensor_combined.gyro_rad[2];
+	// Feed validator with recent sensor data
 
-	float gyro_dt = _sensor_combined.gyro_integral_dt;
-	_ekf->dAngIMU = _ekf->angRate * gyro_dt;
-
-	perf_count(_perf_gyro);
-
-	if (_last_accel != _sensor_combined.timestamp + _sensor_combined.accelerometer_timestamp_relative) {
-
-		_ekf->accel.x = _sensor_combined.accelerometer_m_s2[0];
-		_ekf->accel.y = _sensor_combined.accelerometer_m_s2[1];
-		_ekf->accel.z = _sensor_combined.accelerometer_m_s2[2];
-
-		float accel_dt = _sensor_combined.accelerometer_integral_dt;
-		_ekf->dVelIMU = _ekf->accel * accel_dt;
-
-		_last_accel = _sensor_combined.timestamp + _sensor_combined.accelerometer_timestamp_relative;
+	for (unsigned i = 0; i < (sizeof(_sensor_combined.gyro_timestamp) / sizeof(_sensor_combined.gyro_timestamp[0])); i++) {
+		_voter_gyro.put(i, _sensor_combined.gyro_timestamp[i], &_sensor_combined.gyro_rad_s[i * 3],
+				_sensor_combined.gyro_errcount[i], _sensor_combined.gyro_priority[i]);
+		_voter_accel.put(i, _sensor_combined.accelerometer_timestamp[i], &_sensor_combined.accelerometer_m_s2[i * 3],
+				 _sensor_combined.accelerometer_errcount[i], _sensor_combined.accelerometer_priority[i]);
+		_voter_mag.put(i, _sensor_combined.magnetometer_timestamp[i], &_sensor_combined.magnetometer_ga[i * 3],
+			       _sensor_combined.magnetometer_errcount[i], _sensor_combined.magnetometer_priority[i]);
 	}
 
-	Vector3f mag(_sensor_combined.magnetometer_ga[0], _sensor_combined.magnetometer_ga[1],
-			_sensor_combined.magnetometer_ga[2]);
+	// Get best measurement values
+	hrt_abstime curr_time = hrt_absolute_time();
+	(void)_voter_gyro.get_best(curr_time, &_gyro_main);
 
-	if (mag.length() > 0.1f && _last_mag != _sensor_combined.timestamp + _sensor_combined.magnetometer_timestamp_relative) {
-		_ekf->magData.x = mag.x;
-		_ekf->magData.y = mag.y;
-		_ekf->magData.z = mag.z;
-		_newDataMag = true;
-		_last_mag = _sensor_combined.timestamp + _sensor_combined.magnetometer_timestamp_relative;
-		perf_count(_perf_mag);
+	if (_gyro_main >= 0) {
+
+		// Use pre-integrated values if possible
+		if (_sensor_combined.gyro_integral_dt[_gyro_main] > 0) {
+			_ekf->dAngIMU.x = _sensor_combined.gyro_integral_rad[_gyro_main * 3 + 0];
+			_ekf->dAngIMU.y = _sensor_combined.gyro_integral_rad[_gyro_main * 3 + 1];
+			_ekf->dAngIMU.z = _sensor_combined.gyro_integral_rad[_gyro_main * 3 + 2];
+
+		} else {
+			float dt_gyro = _sensor_combined.gyro_integral_dt[_gyro_main] / 1e6f;
+
+			if (PX4_ISFINITE(dt_gyro) && (dt_gyro < 0.5f) && (dt_gyro > 0.00001f)) {
+				deltaT = dt_gyro;
+				_ekf->dtIMU = deltaT;
+			}
+
+			_ekf->dAngIMU.x = 0.5f * (_ekf->angRate.x + _sensor_combined.gyro_rad_s[_gyro_main * 3 + 0]) * _ekf->dtIMU;
+			_ekf->dAngIMU.y = 0.5f * (_ekf->angRate.y + _sensor_combined.gyro_rad_s[_gyro_main * 3 + 1]) * _ekf->dtIMU;
+			_ekf->dAngIMU.z = 0.5f * (_ekf->angRate.z + _sensor_combined.gyro_rad_s[_gyro_main * 3 + 2]) * _ekf->dtIMU;
+		}
+
+		_ekf->angRate.x = _sensor_combined.gyro_rad_s[_gyro_main * 3 + 0];
+		_ekf->angRate.y = _sensor_combined.gyro_rad_s[_gyro_main * 3 + 1];
+		_ekf->angRate.z = _sensor_combined.gyro_rad_s[_gyro_main * 3 + 2];
+		perf_count(_perf_gyro);
+	}
+
+	(void)_voter_accel.get_best(curr_time, &_accel_main);
+
+	if (_accel_main >= 0 && (_last_accel != _sensor_combined.accelerometer_timestamp[_accel_main])) {
+
+		// Use pre-integrated values if possible
+		if (_sensor_combined.accelerometer_integral_dt[_accel_main] > 0) {
+			_ekf->dVelIMU.x = _sensor_combined.accelerometer_integral_m_s[_accel_main * 3 + 0];
+			_ekf->dVelIMU.y = _sensor_combined.accelerometer_integral_m_s[_accel_main * 3 + 1];
+			_ekf->dVelIMU.z = _sensor_combined.accelerometer_integral_m_s[_accel_main * 3 + 2];
+
+		} else {
+			_ekf->dVelIMU.x = 0.5f * (_ekf->accel.x + _sensor_combined.accelerometer_m_s2[_accel_main * 3 + 0]) * _ekf->dtIMU;
+			_ekf->dVelIMU.y = 0.5f * (_ekf->accel.y + _sensor_combined.accelerometer_m_s2[_accel_main * 3 + 1]) * _ekf->dtIMU;
+			_ekf->dVelIMU.z = 0.5f * (_ekf->accel.z + _sensor_combined.accelerometer_m_s2[_accel_main * 3 + 2]) * _ekf->dtIMU;
+		}
+
+		_ekf->accel.x = _sensor_combined.accelerometer_m_s2[_accel_main * 3 + 0];
+		_ekf->accel.y = _sensor_combined.accelerometer_m_s2[_accel_main * 3 + 1];
+		_ekf->accel.z = _sensor_combined.accelerometer_m_s2[_accel_main * 3 + 2];
+		_last_accel = _sensor_combined.accelerometer_timestamp[_accel_main];
+	}
+
+	(void)_voter_mag.get_best(curr_time, &_mag_main);
+
+	if (_mag_main >= 0) {
+		Vector3f mag(_sensor_combined.magnetometer_ga[_mag_main * 3 + 0], _sensor_combined.magnetometer_ga[_mag_main * 3 + 1],
+			     _sensor_combined.magnetometer_ga[_mag_main * 3 + 2]);
+
+		/* fail over to the 2nd mag if we know the first is down */
+		if (mag.length() > 0.1f && (_last_mag != _sensor_combined.magnetometer_timestamp[_mag_main])) {
+			_ekf->magData.x = mag.x;
+			_ekf->magData.y = mag.y;
+			_ekf->magData.z = mag.z;
+			_newDataMag = true;
+			_last_mag = _sensor_combined.magnetometer_timestamp[_mag_main];
+			perf_count(_perf_mag);
+		}
+	}
+
+	if (!_failsafe && (_voter_gyro.failover_count() > 0 ||
+			   _voter_accel.failover_count() > 0 ||
+			   _voter_mag.failover_count() > 0)) {
+
+		_failsafe = true;
+		mavlink_and_console_log_emergency(_mavlink_fd, "SENSOR FAILSAFE! RETURN TO LAND IMMEDIATELY");
+	}
+
+	if (!_vibration_warning && (_voter_gyro.get_vibration_factor(curr_time) > _vibration_warning_threshold ||
+				    _voter_accel.get_vibration_factor(curr_time) > _vibration_warning_threshold ||
+				    _voter_mag.get_vibration_factor(curr_time) > _vibration_warning_threshold)) {
+
+		if (_vibration_warning_timestamp == 0) {
+			_vibration_warning_timestamp = curr_time;
+
+		} else if (hrt_elapsed_time(&_vibration_warning_timestamp) > 10000000) {
+			_vibration_warning = true;
+			mavlink_and_console_log_critical(_mavlink_fd, "HIGH VIBRATION! g: %d a: %d m: %d",
+							 (int)(100 * _voter_gyro.get_vibration_factor(curr_time)),
+							 (int)(100 * _voter_accel.get_vibration_factor(curr_time)),
+							 (int)(100 * _voter_mag.get_vibration_factor(curr_time)));
+		}
+
+	} else {
+		_vibration_warning_timestamp = 0;
 	}
 
 	_last_sensor_timestamp = _sensor_combined.timestamp;
@@ -1396,8 +1470,8 @@ void AttitudePositionEstimatorEKF::pollData()
 	// leave this in as long as larger improvements are still being made.
 #if 0
 
-	float deltaTIntegral = _sensor_combined.gyro_integral_dt;
-	float deltaTIntAcc = _sensor_combined.accelerometer_integral_dt;
+	float deltaTIntegral = (_sensor_combined.gyro_integral_dt[0]) / 1e6f;
+	float deltaTIntAcc = (_sensor_combined.accelerometer_integral_dt[0]) / 1e6f;
 
 	static unsigned dtoverflow5 = 0;
 	static unsigned dtoverflow10 = 0;
@@ -1413,13 +1487,24 @@ void AttitudePositionEstimatorEKF::pollData()
 			 (double)_ekf->dVelIMU.x, (double)_ekf->dVelIMU.y, (double)_ekf->dVelIMU.z);
 
 		PX4_WARN("INT: dang: %8.4f %8.4f dvel: %8.4f %8.4f %8.4f",
-			 (double)(_sensor_combined.gyro_rad[0]), (double)(_sensor_combined.gyro_rad[2]),
-			 (double)(_sensor_combined.accelerometer_m_s2[0]),
-			 (double)(_sensor_combined.accelerometer_m_s2[1]),
-			 (double)(_sensor_combined.accelerometer_m_s2[2]));
+			 (double)(_sensor_combined.gyro_integral_rad[0]), (double)(_sensor_combined.gyro_integral_rad[2]),
+			 (double)(_sensor_combined.accelerometer_integral_m_s[0]),
+			 (double)(_sensor_combined.accelerometer_integral_m_s[1]),
+			 (double)(_sensor_combined.accelerometer_integral_m_s[2]));
+
+		PX4_WARN("DRV: dang: %8.4f %8.4f dvel: %8.4f %8.4f %8.4f",
+			 (double)(_sensor_combined.gyro_rad_s[0] * deltaT), (double)(_sensor_combined.gyro_rad_s[2] * deltaT),
+			 (double)(_sensor_combined.accelerometer_m_s2[0] * deltaT),
+			 (double)(_sensor_combined.accelerometer_m_s2[1] * deltaT),
+			 (double)(_sensor_combined.accelerometer_m_s2[2] * deltaT));
 
 		PX4_WARN("EKF rate: %8.4f, %8.4f, %8.4f",
 			 (double)_att.rollspeed, (double)_att.pitchspeed, (double)_att.yawspeed);
+
+		PX4_WARN("DRV rate: %8.4f, %8.4f, %8.4f",
+			 (double)_sensor_combined.gyro_rad_s[0],
+			 (double)_sensor_combined.gyro_rad_s[1],
+			 (double)_sensor_combined.gyro_rad_s[2]);
 
 		lastprint = hrt_absolute_time();
 	}
@@ -1437,6 +1522,14 @@ void AttitudePositionEstimatorEKF::pollData()
 	_data_good = true;
 
 	//PX4_INFO("dang: %8.4f %8.4f dvel: %8.4f %8.4f", _ekf->dAngIMU.x, _ekf->dAngIMU.z, _ekf->dVelIMU.x, _ekf->dVelIMU.z);
+
+	//Update Land Detector
+	bool newLandData;
+	orb_check(_landDetectorSub, &newLandData);
+
+	if (newLandData) {
+		orb_copy(ORB_ID(vehicle_land_detected), _landDetectorSub, &_landDetector);
+	}
 
 	//Update AirSpeed
 	orb_check(_airspeed_sub, &_newAdsData);
@@ -1473,11 +1566,11 @@ void AttitudePositionEstimatorEKF::pollData()
 		if (_gpsIsGood) {
 
 			//Calculate time since last good GPS fix
-			const float dtLastGoodGPS = static_cast<float>(_gps.timestamp - _previousGPSTimestamp) / 1e6f;
+			const float dtLastGoodGPS = static_cast<float>(_gps.timestamp_position - _previousGPSTimestamp) / 1e6f;
 
 			//Stop dead-reckoning mode
 			if (_global_pos.dead_reckoning) {
-				mavlink_log_info(&_mavlink_log_pub, "[ekf] stop dead-reckoning");
+				mavlink_log_info(_mavlink_fd, "[ekf] stop dead-reckoning");
 			}
 
 			_global_pos.dead_reckoning = false;
@@ -1532,7 +1625,7 @@ void AttitudePositionEstimatorEKF::pollData()
 
 			// PX4_INFO("vel: %8.4f pos: %8.4f", _gps.s_variance_m_s, _gps.p_variance_m);
 
-			_previousGPSTimestamp = _gps.timestamp;
+			_previousGPSTimestamp = _gps.timestamp_position;
 
 		}
 	}
@@ -1544,7 +1637,7 @@ void AttitudePositionEstimatorEKF::pollData()
 	if (dtLastGoodGPS >= POS_RESET_THRESHOLD) {
 
 		if (_global_pos.dead_reckoning) {
-			mavlink_log_info(&_mavlink_log_pub, "[ekf] gave up dead-reckoning after long timeout");
+			mavlink_log_info(_mavlink_fd, "[ekf] gave up dead-reckoning after long timeout");
 		}
 
 		_gpsIsGood = false;
@@ -1555,7 +1648,7 @@ void AttitudePositionEstimatorEKF::pollData()
 	else if (dtLastGoodGPS >= 0.5f) {
 		if (_armed.armed) {
 			if (!_global_pos.dead_reckoning) {
-				mavlink_log_info(&_mavlink_log_pub, "[ekf] dead-reckoning enabled");
+				mavlink_log_info(_mavlink_fd, "[ekf] dead-reckoning enabled");
 			}
 
 			_global_pos.dead_reckoning = true;

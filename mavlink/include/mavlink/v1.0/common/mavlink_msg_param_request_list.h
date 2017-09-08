@@ -2,32 +2,20 @@
 
 #define MAVLINK_MSG_ID_PARAM_REQUEST_LIST 21
 
-typedef struct MAVLINK_PACKED __mavlink_param_request_list_t
+typedef struct __mavlink_param_request_list_t
 {
  uint8_t target_system; /*< System ID*/
  uint8_t target_component; /*< Component ID*/
 } mavlink_param_request_list_t;
 
 #define MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN 2
-#define MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN 2
 #define MAVLINK_MSG_ID_21_LEN 2
-#define MAVLINK_MSG_ID_21_MIN_LEN 2
 
 #define MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC 159
 #define MAVLINK_MSG_ID_21_CRC 159
 
 
 
-#if MAVLINK_COMMAND_24BIT
-#define MAVLINK_MESSAGE_INFO_PARAM_REQUEST_LIST { \
-	21, \
-	"PARAM_REQUEST_LIST", \
-	2, \
-	{  { "target_system", NULL, MAVLINK_TYPE_UINT8_T, 0, 0, offsetof(mavlink_param_request_list_t, target_system) }, \
-         { "target_component", NULL, MAVLINK_TYPE_UINT8_T, 0, 1, offsetof(mavlink_param_request_list_t, target_component) }, \
-         } \
-}
-#else
 #define MAVLINK_MESSAGE_INFO_PARAM_REQUEST_LIST { \
 	"PARAM_REQUEST_LIST", \
 	2, \
@@ -35,7 +23,7 @@ typedef struct MAVLINK_PACKED __mavlink_param_request_list_t
          { "target_component", NULL, MAVLINK_TYPE_UINT8_T, 0, 1, offsetof(mavlink_param_request_list_t, target_component) }, \
          } \
 }
-#endif
+
 
 /**
  * @brief Pack a param_request_list message
@@ -65,7 +53,11 @@ static inline uint16_t mavlink_msg_param_request_list_pack(uint8_t system_id, ui
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_PARAM_REQUEST_LIST;
-    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#else
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
+#endif
 }
 
 /**
@@ -97,7 +89,11 @@ static inline uint16_t mavlink_msg_param_request_list_pack_chan(uint8_t system_i
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_PARAM_REQUEST_LIST;
-    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#else
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
+#endif
 }
 
 /**
@@ -143,27 +139,21 @@ static inline void mavlink_msg_param_request_list_send(mavlink_channel_t chan, u
 	_mav_put_uint8_t(buf, 0, target_system);
 	_mav_put_uint8_t(buf, 1, target_component);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, buf, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, buf, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, buf, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
+#endif
 #else
 	mavlink_param_request_list_t packet;
 	packet.target_system = target_system;
 	packet.target_component = target_component;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)&packet, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
-#endif
-}
-
-/**
- * @brief Send a param_request_list message
- * @param chan MAVLink channel to send the message
- * @param struct The MAVLink struct to serialize
- */
-static inline void mavlink_msg_param_request_list_send_struct(mavlink_channel_t chan, const mavlink_param_request_list_t* param_request_list)
-{
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_param_request_list_send(chan, param_request_list->target_system, param_request_list->target_component);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)&packet, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
 #else
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)param_request_list, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)&packet, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
+#endif
 #endif
 }
 
@@ -182,13 +172,21 @@ static inline void mavlink_msg_param_request_list_send_buf(mavlink_message_t *ms
 	_mav_put_uint8_t(buf, 0, target_system);
 	_mav_put_uint8_t(buf, 1, target_component);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, buf, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, buf, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, buf, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
+#endif
 #else
 	mavlink_param_request_list_t *packet = (mavlink_param_request_list_t *)msgbuf;
 	packet->target_system = target_system;
 	packet->target_component = target_component;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)packet, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_MIN_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)packet, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_PARAM_REQUEST_LIST, (const char *)packet, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
+#endif
 #endif
 }
 #endif
@@ -226,12 +224,10 @@ static inline uint8_t mavlink_msg_param_request_list_get_target_component(const 
  */
 static inline void mavlink_msg_param_request_list_decode(const mavlink_message_t* msg, mavlink_param_request_list_t* param_request_list)
 {
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
+#if MAVLINK_NEED_BYTE_SWAP
 	param_request_list->target_system = mavlink_msg_param_request_list_get_target_system(msg);
 	param_request_list->target_component = mavlink_msg_param_request_list_get_target_component(msg);
 #else
-        uint8_t len = msg->len < MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN? msg->len : MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN;
-        memset(param_request_list, 0, MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
-	memcpy(param_request_list, _MAV_PAYLOAD(msg), len);
+	memcpy(param_request_list, _MAV_PAYLOAD(msg), MAVLINK_MSG_ID_PARAM_REQUEST_LIST_LEN);
 #endif
 }

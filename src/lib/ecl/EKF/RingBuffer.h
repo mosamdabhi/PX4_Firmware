@@ -37,7 +37,6 @@
  * Template RingBuffer.
  */
 
-#include <inttypes.h>
 #include <cstdio>
 #include <cstring>
 
@@ -51,7 +50,7 @@ public:
 		_head = _tail = _size = 0;
 		_first_write = true;
 	}
-	~RingBuffer() { delete[] _buffer; }
+	~RingBuffer() {delete _buffer;}
 
 	bool allocate(int size)
 	{
@@ -60,7 +59,7 @@ public:
 		}
 
 		if (_buffer != NULL) {
-			delete[] _buffer;
+			delete _buffer;
 		}
 
 		_buffer = new data_type[size];
@@ -70,23 +69,17 @@ public:
 		}
 
 		_size = size;
-		// set the time elements to zero so that bad data is not retrieved from the buffers
-		for (unsigned index=0; index < _size; index++) {
-			_buffer[index].time_us = 0;
-		}
 		_first_write = true;
 		return true;
 	}
 
-	void unallocate()
+	inline void push(data_type sample, bool debug = false)
 	{
-		if (_buffer != NULL) {
-			delete[] _buffer;
+		if (debug) {
+			printf("elapsed %llu\n", sample.time_us - _time_last);
+			_time_last = sample.time_us;
 		}
-	}
 
-	inline void push(data_type sample)
-	{
 		int head_new = _head;
 
 		if (_first_write) {
@@ -128,7 +121,7 @@ public:
 			if (timestamp >= _buffer[index].time_us && timestamp - _buffer[index].time_us < 100000) {
 
 				// TODO Re-evaluate the static cast and usage patterns
-				memcpy(static_cast<void *>(sample), static_cast<void *>(&_buffer[index]), sizeof(*sample));
+				memcpy(static_cast<void*>(sample), static_cast<void*>(&_buffer[index]), sizeof(*sample));
 
 				// Now we can set the tail to the item which comes after the one we removed
 				// since we don't want to have any older data in the buffer
@@ -157,30 +150,6 @@ public:
 	data_type &operator[](unsigned index)
 	{
 		return _buffer[index];
-	}
-
-	// return data at the specified index
-	inline data_type get_from_index(unsigned index)
-	{
-		if (index >= _size) {
-			index = _size-1;
-		}
-		return _buffer[index];
-	}
-
-	// push data to the specified index
-	inline void push_to_index(unsigned index, data_type sample)
-	{
-		if (index >= _size) {
-			index = _size-1;
-		}
-		_buffer[index] = sample;
-	}
-
-	// return the length of the buffer
-	unsigned get_length()
-	{
-		return _size;
 	}
 
 private:

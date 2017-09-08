@@ -2,7 +2,7 @@
 
 #define MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE 104
 
-typedef struct MAVLINK_PACKED __mavlink_vicon_position_estimate_t
+typedef struct __mavlink_vicon_position_estimate_t
 {
  uint64_t usec; /*< Timestamp (microseconds, synced to UNIX time or since system boot)*/
  float x; /*< Global X position*/
@@ -14,30 +14,13 @@ typedef struct MAVLINK_PACKED __mavlink_vicon_position_estimate_t
 } mavlink_vicon_position_estimate_t;
 
 #define MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN 32
-#define MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN 32
 #define MAVLINK_MSG_ID_104_LEN 32
-#define MAVLINK_MSG_ID_104_MIN_LEN 32
 
 #define MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC 56
 #define MAVLINK_MSG_ID_104_CRC 56
 
 
 
-#if MAVLINK_COMMAND_24BIT
-#define MAVLINK_MESSAGE_INFO_VICON_POSITION_ESTIMATE { \
-	104, \
-	"VICON_POSITION_ESTIMATE", \
-	7, \
-	{  { "usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_vicon_position_estimate_t, usec) }, \
-         { "x", NULL, MAVLINK_TYPE_FLOAT, 0, 8, offsetof(mavlink_vicon_position_estimate_t, x) }, \
-         { "y", NULL, MAVLINK_TYPE_FLOAT, 0, 12, offsetof(mavlink_vicon_position_estimate_t, y) }, \
-         { "z", NULL, MAVLINK_TYPE_FLOAT, 0, 16, offsetof(mavlink_vicon_position_estimate_t, z) }, \
-         { "roll", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_vicon_position_estimate_t, roll) }, \
-         { "pitch", NULL, MAVLINK_TYPE_FLOAT, 0, 24, offsetof(mavlink_vicon_position_estimate_t, pitch) }, \
-         { "yaw", NULL, MAVLINK_TYPE_FLOAT, 0, 28, offsetof(mavlink_vicon_position_estimate_t, yaw) }, \
-         } \
-}
-#else
 #define MAVLINK_MESSAGE_INFO_VICON_POSITION_ESTIMATE { \
 	"VICON_POSITION_ESTIMATE", \
 	7, \
@@ -50,7 +33,7 @@ typedef struct MAVLINK_PACKED __mavlink_vicon_position_estimate_t
          { "yaw", NULL, MAVLINK_TYPE_FLOAT, 0, 28, offsetof(mavlink_vicon_position_estimate_t, yaw) }, \
          } \
 }
-#endif
+
 
 /**
  * @brief Pack a vicon_position_estimate message
@@ -95,7 +78,11 @@ static inline uint16_t mavlink_msg_vicon_position_estimate_pack(uint8_t system_i
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE;
-    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#else
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
+#endif
 }
 
 /**
@@ -142,7 +129,11 @@ static inline uint16_t mavlink_msg_vicon_position_estimate_pack_chan(uint8_t sys
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE;
-    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#else
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
+#endif
 }
 
 /**
@@ -198,7 +189,11 @@ static inline void mavlink_msg_vicon_position_estimate_send(mavlink_channel_t ch
 	_mav_put_float(buf, 24, pitch);
 	_mav_put_float(buf, 28, yaw);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, buf, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, buf, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, buf, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
+#endif
 #else
 	mavlink_vicon_position_estimate_t packet;
 	packet.usec = usec;
@@ -209,21 +204,11 @@ static inline void mavlink_msg_vicon_position_estimate_send(mavlink_channel_t ch
 	packet.pitch = pitch;
 	packet.yaw = yaw;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)&packet, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
-#endif
-}
-
-/**
- * @brief Send a vicon_position_estimate message
- * @param chan MAVLink channel to send the message
- * @param struct The MAVLink struct to serialize
- */
-static inline void mavlink_msg_vicon_position_estimate_send_struct(mavlink_channel_t chan, const mavlink_vicon_position_estimate_t* vicon_position_estimate)
-{
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_vicon_position_estimate_send(chan, vicon_position_estimate->usec, vicon_position_estimate->x, vicon_position_estimate->y, vicon_position_estimate->z, vicon_position_estimate->roll, vicon_position_estimate->pitch, vicon_position_estimate->yaw);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)&packet, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
 #else
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)vicon_position_estimate, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)&packet, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
+#endif
 #endif
 }
 
@@ -247,7 +232,11 @@ static inline void mavlink_msg_vicon_position_estimate_send_buf(mavlink_message_
 	_mav_put_float(buf, 24, pitch);
 	_mav_put_float(buf, 28, yaw);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, buf, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, buf, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, buf, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
+#endif
 #else
 	mavlink_vicon_position_estimate_t *packet = (mavlink_vicon_position_estimate_t *)msgbuf;
 	packet->usec = usec;
@@ -258,7 +247,11 @@ static inline void mavlink_msg_vicon_position_estimate_send_buf(mavlink_message_
 	packet->pitch = pitch;
 	packet->yaw = yaw;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)packet, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_MIN_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)packet, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE, (const char *)packet, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
+#endif
 #endif
 }
 #endif
@@ -346,7 +339,7 @@ static inline float mavlink_msg_vicon_position_estimate_get_yaw(const mavlink_me
  */
 static inline void mavlink_msg_vicon_position_estimate_decode(const mavlink_message_t* msg, mavlink_vicon_position_estimate_t* vicon_position_estimate)
 {
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
+#if MAVLINK_NEED_BYTE_SWAP
 	vicon_position_estimate->usec = mavlink_msg_vicon_position_estimate_get_usec(msg);
 	vicon_position_estimate->x = mavlink_msg_vicon_position_estimate_get_x(msg);
 	vicon_position_estimate->y = mavlink_msg_vicon_position_estimate_get_y(msg);
@@ -355,8 +348,6 @@ static inline void mavlink_msg_vicon_position_estimate_decode(const mavlink_mess
 	vicon_position_estimate->pitch = mavlink_msg_vicon_position_estimate_get_pitch(msg);
 	vicon_position_estimate->yaw = mavlink_msg_vicon_position_estimate_get_yaw(msg);
 #else
-        uint8_t len = msg->len < MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN? msg->len : MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN;
-        memset(vicon_position_estimate, 0, MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
-	memcpy(vicon_position_estimate, _MAV_PAYLOAD(msg), len);
+	memcpy(vicon_position_estimate, _MAV_PAYLOAD(msg), MAVLINK_MSG_ID_VICON_POSITION_ESTIMATE_LEN);
 #endif
 }

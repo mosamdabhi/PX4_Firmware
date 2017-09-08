@@ -1,0 +1,24 @@
+if param compare INAV_ENABLED 1
+then
+	attitude_estimator_q start
+	position_estimator_inav start
+else
+	if param compare LPE_ENABLED 1
+	then
+		attitude_estimator_q start
+		local_position_estimator start
+	else
+		ekf2 start
+	fi
+fi
+if mc_att_control start
+then
+else
+	mc_att_control_m start
+fi
+if mc_pos_control start
+then
+else
+	mc_pos_control_m start
+fi
+land_detector start multicopter

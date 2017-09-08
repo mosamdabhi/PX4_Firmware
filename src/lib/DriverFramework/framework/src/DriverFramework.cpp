@@ -1,24 +1,24 @@
 /**********************************************************************
 * Copyright (c) 2015 Mark Charlebois
-*
+* 
 * All rights reserved.
-*
+* 
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
 * disclaimer below) provided that the following conditions are met:
-*
+* 
 *  * Redistributions of source code must retain the above copyright
 *    notice, this list of conditions and the following disclaimer.
-*
+* 
 *  * Redistributions in binary form must reproduce the above copyright
 *    notice, this list of conditions and the following disclaimer in the
 *    documentation and/or other materials provided with the
 *    distribution.
-*
+* 
 *  * Neither the name of Dronecode Project nor the names of its
 *    contributors may be used to endorse or promote products derived
 *    from this software without specific prior written permission.
-*
+* 
 * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
 * GRANTED BY THIS LICENSE.  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
 * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
@@ -41,7 +41,6 @@
 #include "DevObj.hpp"
 #include "DevMgr.hpp"
 #include "SyncObj.hpp"
-#include "WorkItems.hpp"
 
 // Used for backtrace
 #ifdef DF_ENABLE_BACKTRACE
@@ -51,24 +50,65 @@
 
 #define SHOW_STATS 0
 
-namespace DriverFramework
-{
+namespace DriverFramework {
 //-----------------------------------------------------------------------
 // Types
 //-----------------------------------------------------------------------
+class WorkItem
+{
+public:
+	WorkItem()
+	{
+		resetStats();
+	}
+	~WorkItem() {}
+
+	void schedule();
+	void updateStats(unsigned int cur_usec);
+	void resetStats();
+	void dumpStats();
+
+	void set(WorkCallback callback, void *arg, uint32_t delay)
+	{
+		m_arg = arg;
+		m_queue_time = 0;
+		m_callback = callback;
+		m_delay =delay;
+		m_in_use = false;
+
+		resetStats();
+	}
+
+	void *		m_arg;
+	uint64_t	m_queue_time;
+	WorkCallback	m_callback;
+	uint32_t	m_delay;
+	//WorkHandle 	m_handle;
+
+	// statistics
+	unsigned long 	m_last;
+	unsigned long 	m_min;
+	unsigned long 	m_max;
+	unsigned long 	m_total;
+	unsigned long 	m_count;
+
+	bool		m_in_use = false;
+};
 
 class HRTWorkQueue : public DisableCopy
 {
 public:
-	static HRTWorkQueue &instance(void);
+	static HRTWorkQueue *instance(void);
 
-	int initialize(void);
-	void finalize(void);
+	static int initialize(void);
+	static void finalize(void);
 
 	void scheduleWorkItem(WorkHandle &wh);
+	void unscheduleWorkItem(WorkHandle &wh);
 
 	void shutdown(void);
 	void enableStats(bool enable);
+	void clearAll();
 
 	static void *process_trampoline(void *);
 
@@ -78,104 +118,105 @@ private:
 
 	void process(void);
 
-	bool 	m_enable_stats = false;
+	void hrtLock(void);
+	void hrtUnlock(void);
 
-	SyncObj m_reschedule;
+	DFUIntList	m_work_list;
+
+	bool m_enable_stats = false;
+	bool m_exit_requested = false;
+
+	static HRTWorkQueue *m_instance;
 };
 
+class WorkItems : public DFManagedList<WorkItem>
+{
+public:
+	WorkItems() :
+		DFManagedList()
+	{}
+
+	virtual ~WorkItems()
+	{}
+
+	bool getAt(unsigned int index, WorkItem **item)
+	{
+		Index idx = nullptr;
+		idx = next(idx);
+		for (unsigned int i = 0; i < index; ++i) {
+			if (idx == nullptr) {
+				return false;
+			}
+			idx = next(idx);
+		}
+		*item = get(idx);
+		return true;
+	}
+};
 
 };
 
 using namespace DriverFramework;
 
 //-----------------------------------------------------------------------
-// Global Variables
-//-----------------------------------------------------------------------
-namespace DriverFramework
-{
-RunStatus *g_run_status = nullptr;
-};
-
-
-//-----------------------------------------------------------------------
 // Static Variables
 //-----------------------------------------------------------------------
 
+static uint64_t g_timestart = 0;
 static pthread_t g_tid;
 
-// QuRT C++ compiler does not support static initialization of classes
-static SyncObj *g_framework;
+static pthread_mutex_t g_framework_exit = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_hrt_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_timestart_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_reschedule_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t g_framework_cond = PTHREAD_COND_INITIALIZER;
+
+static WorkItems *g_work_items = nullptr;
+
+static SyncObj *g_lock = nullptr;
 
 //-----------------------------------------------------------------------
 // Static Functions
 //-----------------------------------------------------------------------
 
-static uint64_t TsToAbstime(struct timespec *ts)
+bool WorkMgr::isValid(const WorkHandle &h)
 {
-	uint64_t result;
-
-	result = (uint64_t)(ts->tv_sec) * 1000000;
-	result += ts->tv_nsec / 1000;
-
-	return result;
+	return ((h.m_handle >=0) && ((unsigned int)h.m_handle < g_work_items->size()));
 }
 
-static uint64_t getStartTime()
+static uint64_t TSToABSTime(struct timespec *ts)
 {
-	static SyncObj *lock = nullptr;
-	static uint64_t starttime = 0;
+        uint64_t result;
 
-	if (!lock) {
-		lock = new SyncObj;
-	}
+        result = (uint64_t)(ts->tv_sec) * 1000000;
+        result += ts->tv_nsec / 1000;
 
-	struct timespec ts = {};
-
-	lock->lock();
-
-	int ret = absoluteTime(ts);
-
-	if (ret != 0) {
-		printf("ERROR: absoluteTime returned (%d)", ret);
-		lock->unlock();
-		return 0;
-	}
-
-	if (!starttime) {
-		starttime = TsToAbstime(&ts);
-	}
-
-	lock->unlock();
-
-	return starttime;
+        return result;
 }
 
 //-----------------------------------------------------------------------
 // Global Functions
 //-----------------------------------------------------------------------
-
-// NOTE: DO NOT USE DF_LOG_XXX here as it will cause a recursive loop
 uint64_t DriverFramework::offsetTime(void)
 {
 	struct timespec ts = {};
 
-	int ret = absoluteTime(ts);
+	(void)clockGetRealtime(&ts);
 
-	if (ret != 0) {
-		printf("ERROR: absoluteTime returned (%d)", ret);
-		return 0;
+	pthread_mutex_lock(&g_timestart_lock);
+	if (!g_timestart) {
+		g_timestart = TSToABSTime(&ts);
 	}
+	pthread_mutex_unlock(&g_timestart_lock);
 
 	// Time is in microseconds
-	uint64_t result = TsToAbstime(&ts) - getStartTime();
-
-	return result;
+	return TSToABSTime(&ts) - g_timestart;
 }
 
 timespec DriverFramework::offsetTimeToAbsoluteTime(uint64_t offset_time)
 {
+	uint64_t abs_time = offset_time + g_timestart;
 	struct timespec ts = {};
-	uint64_t abs_time = offset_time + getStartTime();
 	ts.tv_sec = abs_time / 1000000;
 	ts.tv_nsec = (abs_time % 1000000) * 1000;
 
@@ -193,10 +234,10 @@ void DriverFramework::backtrace()
 	bt_size = ::backtrace(buffer, 10);
 	callstack = ::backtrace_symbols(buffer, bt_size);
 
-	DF_LOG_INFO("Backtrace: %d", bt_size);
+	DF_LOG_DEBUG("Backtrace: %d", bt_size);
 
 	for (idx = 0; idx < bt_size; idx++) {
-		DF_LOG_INFO("%s", callstack[idx]);
+		DF_LOG_DEBUG("%s", callstack[idx]);
 	}
 
 	free(callstack);
@@ -208,30 +249,12 @@ void DriverFramework::backtrace()
 //-----------------------------------------------------------------------
 
 /*************************************************************************
-  RunStatus
-*************************************************************************/
-bool RunStatus::check()
-{
-	m_lock.lock();
-	bool ret = m_run;
-	m_lock.unlock();
-	return ret;
-}
-
-void RunStatus::terminate()
-{
-	m_lock.lock();
-	m_run = false;
-	m_lock.unlock();
-}
-
-/*************************************************************************
   Framework
 *************************************************************************/
 void Framework::shutdown()
 {
 	// Free the HRTWorkQueue resources
-	HRTWorkQueue::instance().finalize();
+	HRTWorkQueue::finalize();
 
 	// Free the WorkMgr resources
 	WorkMgr::finalize();
@@ -240,174 +263,145 @@ void Framework::shutdown()
 	DevMgr::finalize();
 
 	// allow Framework to exit
-	g_framework->lock();
-	g_framework->signal();
-	g_framework->unlock();
+	pthread_mutex_lock(&g_framework_exit);
+	pthread_cond_signal(&g_framework_cond);
+	pthread_mutex_unlock(&g_framework_exit);
 }
 
 int Framework::initialize()
 {
-	DF_LOG_DEBUG("Framework::initialize");
+	DF_LOG_INFO("Framework::initialize");
 
-	g_framework = new SyncObj;
-
-	if (!g_framework) {
-		DF_LOG_ERR("ERROR: falled to allocate g_framework");
-		return -1;
-	}
-
-	g_run_status = new RunStatus;
-
-	if (!g_run_status) {
-		DF_LOG_ERR("g_run_status allocation failed");
-		return -2;
-	}
-
-	struct timespec ts = {};
-
-	int ret = absoluteTime(ts);
-
-	if (ret != 0) {
-		DF_LOG_ERR("ERROR: absoluteTime returned (%d)", ret);
-		return -4;
-	}
-
-	ret = HRTWorkQueue::instance().initialize();
-
+	int ret = HRTWorkQueue::initialize();
 	if (ret < 0) {
-		return ret - 10;
+		return ret-10;
 	}
-
-	DF_LOG_DEBUG("Calling DevMgr::initialize");
+	DF_LOG_INFO("Calling DevMgr::initialize");
 	ret = DevMgr::initialize();
-
 	if (ret < 0) {
-		return ret - 20;
+		return ret-20;
 	}
-
-	DF_LOG_DEBUG("Calling WorkMgr::initialize");
+	DF_LOG_INFO("Calling WorkMgr::initialize");
 	ret = WorkMgr::initialize();
-
 	if (ret < 0) {
-		return ret - 30;
+		return ret-30;
 	}
-
 	return 0;
 }
 
 void Framework::waitForShutdown()
 {
 	// Block until shutdown requested
-	g_framework->lock();
-	g_framework->waitOnSignal(0);
-	g_framework->unlock();
+	pthread_mutex_lock(&g_framework_exit);
+	pthread_cond_wait(&g_framework_cond, &g_framework_exit);
+	pthread_mutex_unlock(&g_framework_exit);
+}
 
-	delete g_framework;
-	g_framework = nullptr;
+/*************************************************************************
+  WorkItem
+*************************************************************************/
+void WorkItem::updateStats(unsigned int cur_usec)
+{
+	unsigned long delay = (m_last == ~0x0UL) ? (cur_usec - m_queue_time) : (cur_usec - m_last);
+
+	if (delay < m_min) {
+		m_min = delay;
+	}
+	if (delay > m_max) {
+		m_max = delay;
+	}
+
+	m_total += delay;
+	m_count += 1;
+	m_last = cur_usec;
+
+#if SHOW_STATS == 1
+	if ((m_count % 100) == 99) {
+		dumpStats();
+	}
+#endif
+}
+
+void WorkItem::resetStats() 
+{
+	m_last = ~(unsigned long)0;
+	m_min = ~(unsigned long)0;
+	m_max = 0;
+	m_total = 0;
+	m_count = 0;
+}
+
+void WorkItem::dumpStats() 
+{
+	DF_LOG_DEBUG("Stats for callback=%p: count=%lu, avg=%lu min=%lu max=%lu", 
+		m_callback, m_count, m_total/m_count, m_min, m_max);
 }
 
 /*************************************************************************
   HRTWorkQueue
 *************************************************************************/
-
-#ifndef __PX4_QURT
-// pthread_setschedparam does not seem to work on QURT.
-static void show_sched_settings()
-{
-	int policy;
-	struct sched_param param;
-
-	int ret = pthread_getschedparam(pthread_self(), &policy, &param);
-
-	if (ret != 0) {
-		DF_LOG_ERR("pthread_getschedparam failed (%d)", ret);
-	}
-
-	DF_LOG_DEBUG("pthread info: policy=%s priority=%d",
-		     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
-		     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
-		     (policy == SCHED_RR)    ? "SCHED_RR" :
-		     "UNKNOWN",
-		     param.sched_priority);
-}
-
-static int setRealtimeSched()
-{
-	int policy = SCHED_FIFO;
-	sched_param param;
-
-	param.sched_priority = 10;
-
-	int ret = pthread_setschedparam(pthread_self(), policy, &param);
-
-	show_sched_settings();
-
-	return ret;
-}
-#endif
+HRTWorkQueue *HRTWorkQueue::m_instance = NULL;
 
 void *HRTWorkQueue::process_trampoline(void *arg)
 {
-	DF_LOG_DEBUG("HRTWorkQueue::process_trampoline");
-
-#ifndef __PX4_QURT
-	int ret = setRealtimeSched();
-
-	if (ret != 0) {
-		DF_LOG_ERR("WARNING: setRealtimeSched failed (not run as root?)");
+	DF_LOG_INFO("HRTWorkQueue::process_trampoline");
+	if (m_instance) {
+		m_instance->process();
 	}
-
-#endif
-
-	DF_LOG_DEBUG("process_trampoline %d", ret);
-
-	instance().process();
-
 	return NULL;
 }
 
-HRTWorkQueue &HRTWorkQueue::instance(void)
+HRTWorkQueue *HRTWorkQueue::instance(void)
 {
-	static HRTWorkQueue *instance = nullptr;
+	return m_instance;
+}
 
-	if (!instance) {
-		instance = new HRTWorkQueue();
-	}
+static int setRealtimeSched(pthread_attr_t &attr)
+{
+	sched_param param;
 
-	return *instance;
+	int ret = pthread_attr_init (&attr);
+	ret = (!ret) ? ret : pthread_attr_getschedparam (&attr, &param);
+
+#ifndef __QURT
+	param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+
+	ret = (!ret) ? ret : pthread_attr_setschedparam (&attr, &param);
+	ret = (!ret) ? ret : pthread_attr_setinheritsched (&attr, PTHREAD_EXPLICIT_SCHED);
+#endif
+	return ret;
 }
 
 int HRTWorkQueue::initialize(void)
 {
-	DF_LOG_DEBUG("HRTWorkQueue::initialize");
+	DF_LOG_INFO("HRTWorkQueue::initialize");
+	m_instance = new HRTWorkQueue();
+	DF_LOG_INFO("Created HRTWorkQueue");
 
-	pthread_attr_t attr;
-	int ret = pthread_attr_init(&attr);
-
-	if (ret != 0) {
-		DF_LOG_ERR("pthread_attr_init failed");
+	if (m_instance == nullptr) {
 		return -1;
 	}
+	DF_LOG_INFO("m_instance = %p", m_instance);
+	DF_LOG_INFO("Calling pthread_mutex_init");
 
-#ifdef __QURT
-	// Try to set a stack size. This stack size is later used in _measure() calls
-	// in the sensor drivers, at least on QURT.
-	const size_t stacksize = 3072;
-
-	if (pthread_attr_setstacksize(&attr, stacksize) != 0) {
-		DF_LOG_ERR("failed to set stack size of %lu bytes", stacksize);
+	// Create a lock for handling the work queue
+	// Cannot use recursive mutex for pthread_cond_timedwait in DSPAL
+	if (initNormalMutex(g_hrt_lock) < 0) {
 		return -2;
 	}
+	DF_LOG_INFO("pthread_mutex_init success");
 
-#endif
+	pthread_attr_t attr;
+	if(setRealtimeSched(attr)) {
+		return -3;
+	}
+	DF_LOG_INFO("setRealtimeSched success");
 
 	// Create high priority worker thread
 	if (pthread_create(&g_tid, &attr, process_trampoline, NULL)) {
-		return -3;
+		return -4;
 	}
-
-	DF_LOG_DEBUG("pthread_create success");
-
+	DF_LOG_INFO("pthread_create success");
 	return 0;
 }
 
@@ -415,99 +409,352 @@ void HRTWorkQueue::finalize(void)
 {
 	DF_LOG_DEBUG("HRTWorkQueue::finalize");
 
-	shutdown();
+	// Stop the HRT queue thread
+	HRTWorkQueue *wq = HRTWorkQueue::instance();
+	if (wq) {
+		wq->shutdown();
 
-	// Wait for work queue thread to exit
-	pthread_join(g_tid, NULL);
+		// Wait for work queue thread to exit
+		pthread_join(g_tid, NULL);
+
+		wq->clearAll();
+		pthread_mutex_destroy(&g_hrt_lock);
+
+		delete wq;
+		wq = nullptr;
+	}
 }
 
 void HRTWorkQueue::scheduleWorkItem(WorkHandle &wh)
 {
 	DF_LOG_DEBUG("HRTWorkQueue::scheduleWorkItem (%p)", &wh);
-
 	// Handle is known to be valid
-	int ret = WorkItems::schedule(wh.m_handle);
+	hrtLock();
+	WorkItem *item;
+	g_work_items->getAt(wh.m_handle, &item);
+	item->m_queue_time = offsetTime();
+	item->m_in_use = true;
+	m_work_list.pushBack(wh.m_handle);
+	pthread_cond_signal(&g_reschedule_cond);
+	hrtUnlock();
+}
 
-	DF_LOG_DEBUG("WorkItems::schedule %d", ret);
+void HRTWorkQueue::unscheduleWorkItem(WorkHandle &wh)
+{
+	DF_LOG_DEBUG("HRTWorkQueue::unscheduleWorkItem (%p)", &wh);
+	hrtLock();
+	DFUIntList::Index idx = nullptr;
+	idx = m_work_list.next(idx);
+	while (idx != nullptr) {
+		unsigned int index;
+		m_work_list.get(idx, index);
 
-	if (ret == 0) {
-		wh.m_errno = 0;
-		m_reschedule.lock();
-		m_reschedule.signal();
-		m_reschedule.unlock();
-
-	} else if (ret == EBADF) {
-		wh.m_errno = EBADF;
-		wh.m_handle = -1;
-
-	} else {
-		wh.m_errno = ret;
+		// remove unscheduled item
+		WorkItem *item;
+		if (!g_work_items->getAt(index, &item)) {
+			DF_LOG_INFO("HRTWorkQueue::unscheduleWorkItem - invalid index");
+		} 
+		else {
+			if (item->m_in_use == false) {
+				idx = m_work_list.erase(idx);
+				break;
+			}
+		}
+		idx = m_work_list.next(idx);
 	}
+	hrtUnlock();
+}
 
+void HRTWorkQueue::clearAll()
+{
+	DF_LOG_DEBUG("HRTWorkQueue::clearAll");
+	hrtLock();
+	DFUIntList::Index idx = nullptr;
+	idx = m_work_list.next(idx);
+	while (idx != nullptr) {
+		unsigned int index;
+		m_work_list.get(idx, index);
+		WorkItem *item;
+		g_work_items->getAt(index, &item);
+		item->m_in_use = false;
+		idx = m_work_list.erase(idx);
+	}
+	hrtUnlock();
 }
 
 void HRTWorkQueue::shutdown(void)
 {
 	DF_LOG_DEBUG("HRTWorkQueue::shutdown");
-
-	if (g_run_status) {
-		g_run_status->terminate();
-	}
-
-	m_reschedule.lock();
-	m_reschedule.signal();
-	m_reschedule.unlock();
+	hrtLock();
+	m_exit_requested = true;
+	pthread_cond_signal(&g_reschedule_cond);
+	hrtUnlock();
 }
 
 void HRTWorkQueue::process(void)
 {
-	DF_LOG_DEBUG("HRTWorkQueue::process");
+	DF_LOG_INFO("HRTWorkQueue::process");
 	uint64_t next;
+	uint64_t elapsed;
+	uint64_t remaining;
 	timespec ts;
 	uint64_t now;
 
-	while (g_run_status && g_run_status->check()) {
-		now = offsetTime();
+	while(!m_exit_requested) {
+		DF_LOG_INFO("HRTWorkQueue::process In while");
+		hrtLock();
 
 		// Wake up every 10 sec if nothing scheduled
-		next = now + 10000000;
+		next = 10000000;
 
-		WorkItems::processExpiredWorkItems(next);
-
+		DFUIntList::Index idx = nullptr;
+		idx = m_work_list.next(idx);
 		now = offsetTime();
-		DF_LOG_DEBUG("now=%" PRIu64, now);
+		while ((!m_exit_requested) && (idx != nullptr)) {
+			DF_LOG_INFO("HRTWorkQueue::process work exists");
+			now = offsetTime();
+			unsigned int index; 
+			m_work_list.get(idx, index);
+			if (index < g_work_items->size()) {
+				WorkItem *item;
+				g_work_items->getAt(index, &item);
+				elapsed = now - item->m_queue_time;
+				//DF_LOG_DEBUG("now = %lu elapsed = %lu delay = %lu\n", now, elapsed, item.m_delay);
 
-#ifdef __LINUX
-		// This offset removes latency in processing the items on the queue
-		uint64_t TUNING_ADJUSTMENT = 150;
-		next -= TUNING_ADJUSTMENT;
-#endif
+				if (elapsed >= item->m_delay) {
 
-		uint64_t wait_time_usec = (next > now) ? next - now : 0;
+					DF_LOG_INFO("HRTWorkQueue::process do work (%p)", item->m_callback);
+					item->updateStats(now);
 
-		// Wait granularity is 200us
-		// TODO: this magic number needs checking
-		if (wait_time_usec > 200) {
-			// pthread_cond_timedwait uses absolute time
-			ts = offsetTimeToAbsoluteTime(next);
+					// reschedule work
+					item->m_queue_time = offsetTime();
+					item->m_in_use = true;
 
-			DF_LOG_DEBUG("HRTWorkQueue::process waiting for work (%" PRIi64 "usec)", wait_time_usec);
-			// Wait until next expiry or until a new item is rescheduled
-			m_reschedule.lock();
-			m_reschedule.waitOnSignal(wait_time_usec);
-			m_reschedule.unlock();
-			DF_LOG_DEBUG("Done wait");
+					void* tmpptr = item->m_arg;
+					hrtUnlock();
+					item->m_callback(tmpptr);
+					hrtLock();
+
+					// Start again from the top to ge rescheduled work
+					idx = nullptr;
+					idx = m_work_list.next(idx);
+				} else {
+					remaining = item->m_delay - elapsed;
+					if (remaining < next) {
+						next = remaining;
+					}
+
+					// try the next in the list
+					idx = m_work_list.next(idx);
+				}
+			}
 		}
 
-		DF_LOG_DEBUG("not waiting for work (%" PRIi64 "usec)", wait_time_usec);
+		// pthread_cond_timedwait uses absolute time
+		ts = offsetTimeToAbsoluteTime(now+next);
+		
+		DF_LOG_INFO("HRTWorkQueue::process waiting for work (%" PRIu64 ")", next);
+		// Wait until next expiry or until a new item is rescheduled
+		pthread_cond_timedwait(&g_reschedule_cond, &g_hrt_lock, &ts);
+		hrtUnlock();
 	}
-};
-
-// This has to be in ths file to access HRTWorkQueue::scheduleWorkItem
-int WorkMgr::schedule(DriverFramework::WorkHandle &wh)
-{
-	DF_LOG_DEBUG("WorkMgr::schedule");
-	HRTWorkQueue::instance().scheduleWorkItem(wh);
-	return (wh.m_errno == 0) ? 0 : -1;
 }
 
+void HRTWorkQueue::hrtLock()
+{
+	pthread_mutex_lock(&g_hrt_lock);
+}
+
+void HRTWorkQueue::hrtUnlock()
+{
+	pthread_mutex_unlock(&g_hrt_lock);
+}
+
+/*************************************************************************
+  WorkMgr
+*************************************************************************/
+int WorkMgr::initialize()
+{
+	DF_LOG_DEBUG("WorkMgr::initialize");
+	if (g_lock) {
+		// Already initialized
+		return 0;
+	}
+	g_lock = new SyncObj();
+	if (g_lock == nullptr) {
+		return -1;
+	}
+
+	g_work_items = new WorkItems;
+	if (g_work_items == nullptr) {
+		delete g_lock;
+		g_lock = nullptr;
+		return -2;
+	}
+	return 0;
+}
+
+void WorkMgr::finalize()
+{
+	DF_LOG_DEBUG("WorkMgr::finalize");
+	if (!g_lock) {
+		return;
+	}
+
+	g_lock->lock();
+	DFPointerList::Index idx = nullptr;
+	idx = g_work_items->next(idx);
+	while (idx != nullptr) {
+		WorkItem *wi = reinterpret_cast<WorkItem *>(g_work_items->get(idx));
+		//verify not in use
+		if (wi->m_in_use) {
+			DF_LOG_ERR("ERROR: no work items should be in use");
+		}
+		idx = g_work_items->next(idx);
+	}
+	
+	g_work_items->clear();
+	delete g_work_items;
+	g_work_items = nullptr;
+	g_lock->unlock();
+	delete g_lock;
+	g_lock = nullptr;
+}
+
+void WorkMgr::getWorkHandle(WorkCallback cb, void *arg, uint32_t delay, WorkHandle &wh)
+{
+	DF_LOG_DEBUG("WorkMgr::getWorkHandle");
+	if (!g_lock) {
+		wh.m_errno = ESRCH;
+		wh.m_handle = -1;
+		return;
+	}
+
+	g_lock->lock();
+
+	// unschedule work and erase the handle if handle exists
+	if (isValid(wh)) {
+		WorkItem *item;
+		g_work_items->getAt(wh.m_handle, &item);
+		if (item->m_in_use) {
+			HRTWorkQueue::instance()->unscheduleWorkItem(wh);
+		}
+	}
+	else {
+
+		// find an available WorkItem
+		unsigned int i=0;
+		DFPointerList::Index idx = nullptr;
+		idx = g_work_items->next(idx);
+		while (idx != nullptr) {
+			WorkItem *wi = reinterpret_cast<WorkItem *>(g_work_items->get(idx));
+
+			if (!wi->m_in_use) {
+				wh.m_handle = i;
+				break;
+			}
+			++i;
+			idx = g_work_items->next(idx);
+		}
+
+		// If no free WorkItems, add one to the end
+		if (!isValid(wh)) {
+			g_work_items->pushBack(new WorkItem());
+			wh.m_handle = g_work_items->size()-1;
+		}
+	}
+
+	if (isValid(wh)) {
+	
+		// Re-use the WorkItem
+		WorkItem *item;
+		g_work_items->getAt(wh.m_handle, &item);
+
+		item->set(cb, arg, delay);
+	}
+
+	g_lock->unlock();
+	wh.m_errno = 0;
+}
+
+int WorkMgr::releaseWorkHandle(WorkHandle &wh)
+{
+	DF_LOG_DEBUG("WorkMgr::releaseWorkHandle");
+	if (g_lock == nullptr) {
+		wh.m_errno = ESRCH;
+		wh.m_handle = -1;
+		return -1;
+	}
+	if (wh.m_handle == -1) {
+		setError(wh, EBADF);
+		return -2;
+	}
+
+	int ret = 0;
+	g_lock->lock();
+	if (isValid(wh)) {
+		WorkItem *item;
+		g_work_items->getAt(wh.m_handle, &item);
+		if (item->m_in_use) {
+			item->m_in_use = false;
+			HRTWorkQueue::instance()->unscheduleWorkItem(wh);
+			wh.m_handle = -1;
+		}
+		wh.m_errno = 0;
+	}
+	else {
+		setError(wh, EBADF);
+		ret = -1;
+	}
+	
+	g_lock->unlock();
+	return ret;
+}
+
+int WorkMgr::schedule(WorkHandle &wh)
+{
+	DF_LOG_DEBUG("WorkMgr::schedule");
+	if (g_lock == nullptr) {
+		wh.m_errno = ESRCH;
+		return -1;
+	}
+	if (wh.m_handle == -1) {
+		wh.m_errno = EBADF;
+		return -2;
+	}
+
+	DF_LOG_DEBUG("WorkMgr::schedule - checks ok");
+	int ret = 0;
+	g_lock->lock();
+	if (isValid(wh)) {
+		WorkItem *item;
+		g_work_items->getAt(wh.m_handle, &item);
+		if (item->m_in_use) {
+			DF_LOG_ERR("WorkMgr::schedule can't schedule a handle that's in use");
+			wh.m_errno = EBUSY;
+			ret = -3;
+		}
+		else {
+			DF_LOG_DEBUG("WorkMgr::schedule - do schedule");
+			HRTWorkQueue::instance()->scheduleWorkItem(wh);
+		}
+	}
+	else {
+		wh.m_errno = EBADF;
+		wh.m_handle = -1;
+		ret = -4;
+	}
+	g_lock->unlock();
+	wh.m_errno = 0;
+	return ret;
+}
+void WorkMgr::setError(WorkHandle &h, int error)
+{
+	h.m_errno = error;
+}
+
+
+WorkHandle::~WorkHandle()
+{
+	WorkMgr::releaseWorkHandle(*this);
+}

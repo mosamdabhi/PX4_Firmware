@@ -7,7 +7,8 @@
 
 #include <uavcan/build_config.hpp>
 #include <uavcan/debug.hpp>
-#include <uavcan/protocol/dynamic_node_id_server/abstract_server.hpp>
+#include <uavcan/protocol/dynamic_node_id_server/allocation_request_manager.hpp>
+#include <uavcan/protocol/dynamic_node_id_server/node_discoverer.hpp>
 #include <uavcan/protocol/dynamic_node_id_server/node_id_selector.hpp>
 #include <uavcan/protocol/dynamic_node_id_server/storage_marshaller.hpp>
 #include <uavcan/protocol/dynamic_node_id_server/centralized/storage.hpp>
@@ -25,8 +26,15 @@ namespace centralized
  *
  * This version is suitable only for simple non-critical systems.
  */
-class Server : public AbstractServer
+class Server : IAllocationRequestHandler
+             , INodeDiscoveryHandler
 {
+    UniqueID own_unique_id_;
+
+    INode& node_;
+    IEventTracer& tracer_;
+    AllocationRequestManager allocation_request_manager_;
+    NodeDiscoverer node_discoverer_;
     Storage storage_;
 
     /*
@@ -120,7 +128,10 @@ public:
     Server(INode& node,
            IStorageBackend& storage,
            IEventTracer& tracer)
-        : AbstractServer(node, tracer)
+        : node_(node)
+        , tracer_(tracer)
+        , allocation_request_manager_(node, tracer, *this)
+        , node_discoverer_(node, tracer, *this)
         , storage_(storage)
     { }
 
@@ -137,19 +148,12 @@ public:
         }
 
         /*
-         * Common logic
-         */
-        res = AbstractServer::init(own_unique_id, priority);
-        if (res < 0)
-        {
-            return res;
-        }
-
-        /*
          * Making sure that the server is started with the same node ID
          */
+        own_unique_id_ = own_unique_id;
+
         {
-            const NodeID stored_own_node_id = storage_.getNodeIDForUniqueID(getOwnUniqueID());
+            const NodeID stored_own_node_id = storage_.getNodeIDForUniqueID(own_unique_id_);
             if (stored_own_node_id.isValid())
             {
                 if (stored_own_node_id != node_.getNodeID())
@@ -159,12 +163,27 @@ public:
             }
             else
             {
-                res = storage_.add(node_.getNodeID(), getOwnUniqueID());
+                res = storage_.add(node_.getNodeID(), own_unique_id_);
                 if (res < 0)
                 {
                     return res;
                 }
             }
+        }
+
+        /*
+         * Misc
+         */
+        res = allocation_request_manager_.init(priority);
+        if (res < 0)
+        {
+            return res;
+        }
+
+        res = node_discoverer_.init(priority);
+        if (res < 0)
+        {
+            return res;
         }
 
         return 0;

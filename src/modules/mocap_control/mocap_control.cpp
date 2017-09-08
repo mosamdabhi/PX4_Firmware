@@ -44,7 +44,6 @@
 
 #include "MocapAttitudeController.h"
 #include "MocapPositionController.h"
-//#include "MocapManualControl.h"
 
 /**< Deamon exit flag */
 static bool thread_should_exit = false;
@@ -94,7 +93,7 @@ int mocap_control_main(int argc, char *argv[])
     mocap_control_task = px4_task_spawn_cmd("mocap_control",
                                             SCHED_DEFAULT,
                                             SCHED_PRIORITY_MAX - 5,
-                                            3000,
+                                            2000,
                                             (px4_main_t)&mocap_control_thread_main,
                                             (argv) ? (char* const*)&argv[2] : nullptr);
     exit(0);
@@ -136,7 +135,6 @@ int mocap_control_main(int argc, char *argv[])
 static MocapPositionController position_controller;
 static MocapAttitudeController attitude_controller;
 
-
 int mocap_control_thread_main(int argc, char *argv[])
 {
   warnx("[mocap_control] main thread started");
@@ -154,13 +152,11 @@ int mocap_control_thread_main(int argc, char *argv[])
   }
 
   int ctrl_state_sub = orb_subscribe(ORB_ID(control_state));
-
   if (ctrl_state_sub < 0)
   {
     err(1, "[mocap_control] ctrl_state_sub failed");
     return -1;
   }
-
 
   px4_pollfd_struct_t fds;
   fds.fd = ctrl_state_sub;
@@ -174,8 +170,6 @@ int mocap_control_thread_main(int argc, char *argv[])
     // Throttle based on control state estimate
     static unsigned int error_counter = 0;
     int pret = px4_poll(&fds, 1, 1000);
-    printf("Pret is: %d\n", pret);
-    
     if (pret < 0)
     {
       if (error_counter++ > 50)
@@ -188,17 +182,15 @@ int mocap_control_thread_main(int argc, char *argv[])
     {
       if (fds.revents & POLLIN)
       {
-        printf("Inside this fds\n");
         struct control_state_s ctrl_state;
         orb_copy(ORB_ID(control_state), ctrl_state_sub, &ctrl_state);
         position_controller.setControlState(ctrl_state);
-        attitude_controller.setControlState(ctrl_state);        
-            
+        attitude_controller.setControlState(ctrl_state);
       }
     }
+
     if (position_controller.update())
     {
-      //printf("Got update from controller\n");
       MotorManager::rpm_cmd_t rpm_cmd;
       attitude_controller.getCurrentRPMCommand(rpm_cmd);
       position_controller.setCurrentRPMCommand(rpm_cmd);
@@ -209,60 +201,13 @@ int mocap_control_thread_main(int argc, char *argv[])
       attitude_controller.update(true);
     }
     else
-    {
       attitude_controller.update(false);
-    }        
   }
 
-  //      attitude_controller.setControlState(ctrl_state);
-  //    }
-  //  }
-
-  /*  bool pos_update = position_controller.update();
-  #if 0
-    printf("pos update %d %d %d\n", pos_update, manstp, control_mode.flag_control_manual_enabled);
-  #endif
-    if (pos_update)
-    {
-      MotorManager::rpm_cmd_t rpm_cmd;
-      attitude_controller.getCurrentRPMCommand(rpm_cmd);
-      position_controller.setCurrentRPMCommand(rpm_cmd);
-      
-      cascaded_attitude_command_t att_cmd;
-      position_controller.getCascadedAttitudeCommand(att_cmd);
-      if (control_mode.flag_control_offboard_enabled)
-        att_cmd.thrust = -att_cmd.thrust;
-      
-      // If velocity is available and in manual mode, use manual thrust
-      if (attitude_controller.rc_on && control_mode.flag_control_manual_enabled) 
-      {
-        att_cmd.thrust = manual_setpoints.manual_thrust;
-        att_cmd.ang_vel(2) = manual_setpoints.yaw_rate_sp;
-      }
-      //att_cmd.thrust = manual_setpoints.manual_thrust; //Please delete        
-      attitude_controller.setCascadedAttitudeCommand(att_cmd, control_mode);
-      attitude_controller.update(true);
-      //printf("thrust auto %3.3f\n", double(att_cmd.thrust));
-      
-    } else if (!pos_update && attitude_controller.rc_on && manstp &&  control_mode.flag_control_manual_enabled)//&& !manual_setpoints.manual_control_setpoint_poll())
-    {      
-      cascaded_attitude_command_t att_cmd;
-      manual_setpoints.getCascadedAttitudeCommand(att_cmd);
-      //printf("thrust %3.3f\n", double(att_cmd.thrust));
-      attitude_controller.setCascadedAttitudeCommand(att_cmd, control_mode);
-      attitude_controller.update(true);
-    } 
-    else
-    {
-      attitude_controller.update(false);
-    }
-  }
-*/
   thread_running = false;
 
   attitude_controller.finalize();
   position_controller.finalize();
-  //manual_setpoints.finalize();
 
   close(ctrl_state_sub);
 

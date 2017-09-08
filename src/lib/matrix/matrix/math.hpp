@@ -12,4 +12,3 @@
 #include "Dcm.hpp"
 #include "Scalar.hpp"
 #include "Quaternion.hpp"
-#include "AxisAngle.hpp"

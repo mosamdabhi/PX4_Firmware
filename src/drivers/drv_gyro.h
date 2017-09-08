@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,13 +55,26 @@
 #define gyro_report sensor_gyro_s
 
 /** gyro scaling factors; Vout = (Vin * Vscale) + Voffset */
-struct gyro_calibration_s {
+struct gyro_scale {
 	float	x_offset;
 	float	x_scale;
 	float	y_offset;
 	float	y_scale;
 	float	z_offset;
 	float	z_scale;
+};
+
+/** gyro temperature compensation and scaling constants **/
+struct gyro_params {
+  float    bwx0;
+  float    bwx1;
+  float    bwx2;
+  float    bwy0;
+  float    bwy1;
+  float    bwy2;
+  float    bwz0;
+  float    bwz1;
+  float    bwz2;
 };
 
 /*
@@ -100,14 +113,11 @@ struct gyro_calibration_s {
 /** check the status of the sensor */
 #define GYROIOCSELFTEST		_GYROIOC(8)
 
-/** set the hardware low-pass filter cut-off no lower than (arg) Hz */
-#define GYROIOCSHWLOWPASS	_GYROIOC(9)
+/** set the gyro param constants to the structure pointed to by (arg) */
+#define GYROIOCSPARAM          _GYROIOC(9)
 
-/** get the hardware low-pass filter cut-off in Hz*/
-#define GYROIOCGHWLOWPASS	_GYROIOC(10)
-
-/** determine if hardware is external or onboard */
-#define GYROIOCGEXTERNAL	_GYROIOC(12)
+/** get the gyro param constants into the structure pointed to by (arg) */
+#define GYROIOCGPARAM          _GYROIOC(10)
 
 
 #endif /* _DRV_GYRO_H */

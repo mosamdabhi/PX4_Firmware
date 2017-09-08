@@ -125,6 +125,7 @@ PARAM_DEFINE_FLOAT(ATT_J33, 0.0037);
  * If set to != 0 the moment of inertia will be used in the estimator
  *
  * @group Attitude EKF estimator
- * @boolean
+ * @min 0
+ * @max 1
  */
 PARAM_DEFINE_INT32(ATT_J_EN, 0);

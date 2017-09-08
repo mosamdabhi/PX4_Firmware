@@ -121,10 +121,11 @@ mixer_tick(void)
 	 * Decide which set of controls we're using.
 	 */
 
-	/* Do not mix if we have raw PWM and FMU is ok. */
+	/* do not mix if RAW_PWM mode is on and FMU is good */
 	if ((r_status_flags & PX4IO_P_STATUS_FLAGS_RAW_PWM) &&
 	    (r_status_flags & PX4IO_P_STATUS_FLAGS_FMU_OK)) {
 
+		/* don't actually mix anything - we already have raw PWM values */
 		source = MIX_NONE;
 
 	} else {
@@ -137,17 +138,25 @@ mixer_tick(void)
 			source = MIX_FMU;
 		}
 
-		else if (r_status_flags & PX4IO_P_STATUS_FLAGS_OVERRIDE) {
+		if ((r_status_flags & PX4IO_P_STATUS_FLAGS_OVERRIDE) &&
+		    (r_status_flags & PX4IO_P_STATUS_FLAGS_RC_OK) &&
+		    (r_status_flags & PX4IO_P_STATUS_FLAGS_MIXER_OK) &&
+		    !(r_setup_arming & PX4IO_P_SETUP_ARMING_RC_HANDLING_DISABLED) &&
+		    !(r_status_flags & PX4IO_P_STATUS_FLAGS_FMU_OK) &&
+		    /* do not enter manual override if we asked for termination failsafe and FMU is lost */
+		    !(r_setup_arming & PX4IO_P_SETUP_ARMING_TERMINATION_FAILSAFE)) {
 
-			if (r_status_flags & PX4IO_P_STATUS_FLAGS_FMU_OK) {
+			/* if allowed, mix from RC inputs directly */
+			source = MIX_OVERRIDE;
 
-				/* if allowed, mix from RC inputs directly up to available rc channels */
-				source = MIX_OVERRIDE_FMU_OK;
+		} else 	if ((r_status_flags & PX4IO_P_STATUS_FLAGS_OVERRIDE) &&
+			    (r_status_flags & PX4IO_P_STATUS_FLAGS_RC_OK) &&
+			    (r_status_flags & PX4IO_P_STATUS_FLAGS_MIXER_OK) &&
+			    !(r_setup_arming & PX4IO_P_SETUP_ARMING_RC_HANDLING_DISABLED) &&
+			    (r_status_flags & PX4IO_P_STATUS_FLAGS_FMU_OK)) {
 
-			} else {
-				/* if allowed, mix from RC inputs directly */
-				source = MIX_OVERRIDE;
-			}
+			/* if allowed, mix from RC inputs directly up to available rc channels */
+			source = MIX_OVERRIDE_FMU_OK;
 		}
 	}
 
@@ -226,8 +235,7 @@ mixer_tick(void)
 		}
 
 
-	} else if (source != MIX_NONE && (r_status_flags & PX4IO_P_STATUS_FLAGS_MIXER_OK)
-		   && !(r_setup_arming & PX4IO_P_SETUP_ARMING_LOCKDOWN)) {
+	} else if (source != MIX_NONE && (r_status_flags & PX4IO_P_STATUS_FLAGS_MIXER_OK)) {
 
 		float	outputs[PX4IO_SERVO_COUNT];
 		unsigned mixed;
@@ -258,9 +266,9 @@ mixer_tick(void)
 	/* set arming */
 	bool needs_to_arm = (should_arm || should_arm_nothrottle || should_always_enable_pwm);
 
-	/* lockdown means to send a valid pulse which disables the outputs */
+	/* check any conditions that prevent arming */
 	if (r_setup_arming & PX4IO_P_SETUP_ARMING_LOCKDOWN) {
-		needs_to_arm = true;
+		needs_to_arm = false;
 	}
 
 	if (needs_to_arm && !mixer_servos_armed) {
@@ -278,8 +286,7 @@ mixer_tick(void)
 		isr_debug(5, "> PWM disabled");
 	}
 
-	if (mixer_servos_armed && (should_arm || should_arm_nothrottle)
-	    && !(r_setup_arming & PX4IO_P_SETUP_ARMING_LOCKDOWN)) {
+	if (mixer_servos_armed && (should_arm || should_arm_nothrottle)) {
 		/* update the servo outputs. */
 		for (unsigned i = 0; i < PX4IO_SERVO_COUNT; i++) {
 			up_pwm_servo_set(i, r_page_servos[i]);
@@ -294,13 +301,10 @@ mixer_tick(void)
 			sbus1_output(_sbus_fd, r_page_servos, PX4IO_SERVO_COUNT);
 		}
 
-	} else if (mixer_servos_armed && (should_always_enable_pwm
-					  || (r_setup_arming & PX4IO_P_SETUP_ARMING_LOCKDOWN))) {
+	} else if (mixer_servos_armed && should_always_enable_pwm) {
 		/* set the disarmed servo outputs. */
 		for (unsigned i = 0; i < PX4IO_SERVO_COUNT; i++) {
 			up_pwm_servo_set(i, r_page_servo_disarmed[i]);
-			/* copy values into reporting register */
-			r_page_servos[i] = r_page_servo_disarmed[i];
 		}
 
 		/* set S.BUS1 or S.BUS2 outputs */
@@ -365,17 +369,14 @@ mixer_callback(uintptr_t handle,
 	if (source == MIX_OVERRIDE || source == MIX_OVERRIDE_FMU_OK) {
 		if (control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE &&
 		    control_index == actuator_controls_s::INDEX_ROLL) {
-			control *= REG_TO_FLOAT(r_setup_scale_roll);
 			control += REG_TO_FLOAT(r_setup_trim_roll);
 
 		} else if (control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE &&
 			   control_index == actuator_controls_s::INDEX_PITCH) {
-			control *= REG_TO_FLOAT(r_setup_scale_pitch);
 			control += REG_TO_FLOAT(r_setup_trim_pitch);
 
 		} else if (control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE &&
 			   control_index == actuator_controls_s::INDEX_YAW) {
-			control *= REG_TO_FLOAT(r_setup_scale_yaw);
 			control += REG_TO_FLOAT(r_setup_trim_yaw);
 		}
 	}
@@ -390,8 +391,7 @@ mixer_callback(uintptr_t handle,
 
 	/* motor spinup phase - lock throttle to zero */
 	if ((pwm_limit.state == PWM_LIMIT_STATE_RAMP) || (should_arm_nothrottle && !should_arm)) {
-		if ((control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE ||
-		     control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE_ALTERNATE) &&
+		if (control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE &&
 		    control_index == actuator_controls_s::INDEX_THROTTLE) {
 			/* limit the throttle output to zero during motor spinup,
 			 * as the motors cannot follow any demand yet
@@ -402,8 +402,7 @@ mixer_callback(uintptr_t handle,
 
 	/* only safety off, but not armed - set throttle as invalid */
 	if (should_arm_nothrottle && !should_arm) {
-		if ((control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE ||
-		     control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE_ALTERNATE) &&
+		if (control_group == actuator_controls_s::GROUP_INDEX_ATTITUDE &&
 		    control_index == actuator_controls_s::INDEX_THROTTLE) {
 			/* mark the throttle as invalid */
 			control = NAN_VALUE;

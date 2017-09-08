@@ -2,32 +2,20 @@
 
 #define MAVLINK_MSG_ID_MISSION_CLEAR_ALL 45
 
-typedef struct MAVLINK_PACKED __mavlink_mission_clear_all_t
+typedef struct __mavlink_mission_clear_all_t
 {
  uint8_t target_system; /*< System ID*/
  uint8_t target_component; /*< Component ID*/
 } mavlink_mission_clear_all_t;
 
 #define MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN 2
-#define MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN 2
 #define MAVLINK_MSG_ID_45_LEN 2
-#define MAVLINK_MSG_ID_45_MIN_LEN 2
 
 #define MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC 232
 #define MAVLINK_MSG_ID_45_CRC 232
 
 
 
-#if MAVLINK_COMMAND_24BIT
-#define MAVLINK_MESSAGE_INFO_MISSION_CLEAR_ALL { \
-	45, \
-	"MISSION_CLEAR_ALL", \
-	2, \
-	{  { "target_system", NULL, MAVLINK_TYPE_UINT8_T, 0, 0, offsetof(mavlink_mission_clear_all_t, target_system) }, \
-         { "target_component", NULL, MAVLINK_TYPE_UINT8_T, 0, 1, offsetof(mavlink_mission_clear_all_t, target_component) }, \
-         } \
-}
-#else
 #define MAVLINK_MESSAGE_INFO_MISSION_CLEAR_ALL { \
 	"MISSION_CLEAR_ALL", \
 	2, \
@@ -35,7 +23,7 @@ typedef struct MAVLINK_PACKED __mavlink_mission_clear_all_t
          { "target_component", NULL, MAVLINK_TYPE_UINT8_T, 0, 1, offsetof(mavlink_mission_clear_all_t, target_component) }, \
          } \
 }
-#endif
+
 
 /**
  * @brief Pack a mission_clear_all message
@@ -65,7 +53,11 @@ static inline uint16_t mavlink_msg_mission_clear_all_pack(uint8_t system_id, uin
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_MISSION_CLEAR_ALL;
-    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#else
+    return mavlink_finalize_message(msg, system_id, component_id, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
+#endif
 }
 
 /**
@@ -97,7 +89,11 @@ static inline uint16_t mavlink_msg_mission_clear_all_pack_chan(uint8_t system_id
 #endif
 
 	msg->msgid = MAVLINK_MSG_ID_MISSION_CLEAR_ALL;
-    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#if MAVLINK_CRC_EXTRA
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#else
+    return mavlink_finalize_message_chan(msg, system_id, component_id, chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
+#endif
 }
 
 /**
@@ -143,27 +139,21 @@ static inline void mavlink_msg_mission_clear_all_send(mavlink_channel_t chan, ui
 	_mav_put_uint8_t(buf, 0, target_system);
 	_mav_put_uint8_t(buf, 1, target_component);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, buf, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, buf, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, buf, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
+#endif
 #else
 	mavlink_mission_clear_all_t packet;
 	packet.target_system = target_system;
 	packet.target_component = target_component;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)&packet, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
-#endif
-}
-
-/**
- * @brief Send a mission_clear_all message
- * @param chan MAVLink channel to send the message
- * @param struct The MAVLink struct to serialize
- */
-static inline void mavlink_msg_mission_clear_all_send_struct(mavlink_channel_t chan, const mavlink_mission_clear_all_t* mission_clear_all)
-{
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_mission_clear_all_send(chan, mission_clear_all->target_system, mission_clear_all->target_component);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)&packet, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
 #else
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)mission_clear_all, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)&packet, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
+#endif
 #endif
 }
 
@@ -182,13 +172,21 @@ static inline void mavlink_msg_mission_clear_all_send_buf(mavlink_message_t *msg
 	_mav_put_uint8_t(buf, 0, target_system);
 	_mav_put_uint8_t(buf, 1, target_component);
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, buf, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, buf, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, buf, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
+#endif
 #else
 	mavlink_mission_clear_all_t *packet = (mavlink_mission_clear_all_t *)msgbuf;
 	packet->target_system = target_system;
 	packet->target_component = target_component;
 
-    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)packet, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_MIN_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#if MAVLINK_CRC_EXTRA
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)packet, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_CRC);
+#else
+    _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_MISSION_CLEAR_ALL, (const char *)packet, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
+#endif
 #endif
 }
 #endif
@@ -226,12 +224,10 @@ static inline uint8_t mavlink_msg_mission_clear_all_get_target_component(const m
  */
 static inline void mavlink_msg_mission_clear_all_decode(const mavlink_message_t* msg, mavlink_mission_clear_all_t* mission_clear_all)
 {
-#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
+#if MAVLINK_NEED_BYTE_SWAP
 	mission_clear_all->target_system = mavlink_msg_mission_clear_all_get_target_system(msg);
 	mission_clear_all->target_component = mavlink_msg_mission_clear_all_get_target_component(msg);
 #else
-        uint8_t len = msg->len < MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN? msg->len : MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN;
-        memset(mission_clear_all, 0, MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
-	memcpy(mission_clear_all, _MAV_PAYLOAD(msg), len);
+	memcpy(mission_clear_all, _MAV_PAYLOAD(msg), MAVLINK_MSG_ID_MISSION_CLEAR_ALL_LEN);
 #endif
 }

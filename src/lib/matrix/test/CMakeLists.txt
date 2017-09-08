@@ -1,7 +1,6 @@
 set(tests
 	setIdentity
 	inverse
-	slice
 	matrixMult
 	vectorAssignment
 	matrixAssignment
@@ -15,7 +14,6 @@ set(tests
 	integration
 	squareMatrix
 	helper
-	hatvee
 	)
 
 add_custom_target(test_build)
@@ -27,30 +25,12 @@ foreach(test_name ${tests})
 endforeach()
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Profile")
-
-	add_custom_target(coverage_build
+	add_custom_target(coverage
 		COMMAND ${CMAKE_CTEST_COMMAND}
 		COMMAND lcov --capture --directory . --output-file coverage.info
-		COMMAND lcov --summary coverage.info
-		WORKING_DIRECTORY ${CMAKE_BUILD_DIR}
-		DEPENDS test_build
-		)
-
-	add_custom_target(coverage_html
 		COMMAND genhtml coverage.info --output-directory out
 		COMMAND x-www-browser out/index.html
 		WORKING_DIRECTORY ${CMAKE_BUILD_DIR}
-		DEPENDS coverage_build
-		)
-
-	set(coverage_deps
-		coverage_build)
-
-	if (COV_HTML)
-		list(APPEND coverage_deps coverage_html)
-	endif()
-
-	add_custom_target(coverage
-		DEPENDS ${coverage_deps}
+		DEPENDS test_build
 		)
 endif()

@@ -12,19 +12,6 @@
 namespace uavcan_stm32
 {
 /**
- * Driver error codes.
- * These values can be returned from driver functions negated.
- */
-//static const uavcan::int16_t ErrUnknown               = 1000; ///< Reserved for future use
-static const uavcan::int16_t ErrNotImplemented          = 1001; ///< Feature not implemented
-static const uavcan::int16_t ErrInvalidBitRate          = 1002; ///< Bit rate not supported
-static const uavcan::int16_t ErrLogic                   = 1003; ///< Internal logic error
-static const uavcan::int16_t ErrUnsupportedFrame        = 1004; ///< Frame not supported (e.g. RTR, CAN FD, etc)
-static const uavcan::int16_t ErrMsrInakNotSet           = 1005; ///< INAK bit of the MSR register is not 1
-static const uavcan::int16_t ErrMsrInakNotCleared       = 1006; ///< INAK bit of the MSR register is not 0
-static const uavcan::int16_t ErrBitRateNotDetected      = 1007; ///< Auto bit rate detection could not be finished
-
-/**
  * RX queue item.
  * The application shall not use this directly.
  */
@@ -117,6 +104,7 @@ class CanIface : public uavcan::ICanIface, uavcan::Noncopyable
     uavcan::uint32_t served_aborts_cnt_;
     BusEvent& update_event_;
     TxItem pending_tx_[NumTxMailboxes];
+    uavcan::uint8_t last_hw_error_code_;
     uavcan::uint8_t peak_tx_mailbox_index_;
     const uavcan::uint8_t self_index_;
     bool had_activity_;
@@ -154,6 +142,7 @@ public:
         , error_cnt_(0)
         , served_aborts_cnt_(0)
         , update_event_(update_event)
+        , last_hw_error_code_(0)
         , peak_tx_mailbox_index_(0)
         , self_index_(self_index)
         , had_activity_(false)
@@ -172,15 +161,7 @@ public:
 
     void handleTxInterrupt(uavcan::uint64_t utc_usec);
     void handleRxInterrupt(uavcan::uint8_t fifo_index, uavcan::uint64_t utc_usec);
-
-    /**
-     * This method is used to count errors and abort transmission on error if necessary.
-     * This functionality used to be implemented in the SCE interrupt handler, but that approach was
-     * generating too much processing overhead, especially on disconnected interfaces.
-     *
-     * Should be called from RX ISR, TX ISR, and select(); interrupts must be enabled.
-     */
-    void pollErrorFlagsFromISR();
+    void handleStatusChangeInterrupt();
 
     void discardTimedOutTxMailboxes(uavcan::MonotonicTime current_time);
 
@@ -205,6 +186,12 @@ public:
      * This is intended for debug use only.
      */
     unsigned getRxQueueLength() const;
+
+    /**
+     * Returns last hardware error code (LEC field in the register ESR).
+     * The error code will be reset.
+     */
+    uavcan::uint8_t yieldLastHardwareErrorCode();
 
     /**
      * Whether this iface had at least one successful IO since previous call of this method.
@@ -300,7 +287,7 @@ public:
      * This overload simply configures the provided bitrate.
      * Auto bit rate detection will not be performed.
      * Bitrate value must be positive.
-     * @return  Negative value on error; non-negative on success. Refer to constants Err*.
+     * @return  Negative value on error; non-negative on success.
      */
     int init(uavcan::uint32_t bitrate)
     {
@@ -319,7 +306,7 @@ public:
      *                          If auto detection was used, the function will update the argument
      *                          with established bit rate. In case of an error the value will be undefined.
      *
-     * @return                  Negative value on error; non-negative on success. Refer to constants Err*.
+     * @return                  Negative value on error; non-negative on success.
      */
     template <typename DelayCallable>
     int init(DelayCallable delay_callable, uavcan::uint32_t& inout_bitrate = BitRateAutoDetect)
@@ -359,7 +346,7 @@ public:
                 }
             }
 
-            return -ErrBitRateNotDetected;
+            return -1;
         }
     }
 

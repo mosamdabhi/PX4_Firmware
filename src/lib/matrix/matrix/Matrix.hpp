@@ -72,14 +72,6 @@ public:
         return _data[i][j];
     }
 
-    Matrix<Type, M, N> & operator=(const Matrix<Type, M, N> &other)
-    {
-        if (this != &other) {
-            memcpy(_data, other._data, sizeof(_data));
-        }
-        return (*this);
-    }
-
     /**
      * Matrix Operations
      */
@@ -274,14 +266,28 @@ public:
 
     void write_string(char * buf, size_t n) const
     {
-        buf[0] = '\0'; // make an empty string to begin with (we need the '\0' for strlen to work)
         const Matrix<Type, M, N> &self = *this;
+        char data_buf[500] = {0};
         for (size_t i = 0; i < M; i++) {
+            char data_line[100] = {0};
+            char data_line_formatted[100] = {0};
             for (size_t j = 0; j < N; j++) {
-                snprintf(buf + strlen(buf), n - strlen(buf), "\t%.2g", double(self(i, j))); // directly append to the string buffer
+                char val_buf[15];
+                if (j == N-1) {
+                    snprintf(val_buf, 15, "\t%10g", double(self(i, j)));
+                } else {
+                    snprintf(val_buf, 15, "\t%10g,", double(self(i, j)));
+                }
+                strncat(data_line, val_buf, 300);
             }
-            snprintf(buf + strlen(buf), n - strlen(buf), "\n");
+            if (i == M-1) {
+                snprintf(data_line_formatted, n, "[%s]", data_line);
+            } else {
+                snprintf(data_line_formatted, n, "[%s],\n", data_line);
+            }
+            strncat(data_buf, data_line_formatted, n);
         }
+        snprintf(buf, n, "[%s]", data_buf);
     }
 
     void print() const
@@ -311,40 +317,6 @@ public:
         return transpose();
     }
 
-    template<size_t P, size_t Q>
-    Matrix<Type, P, Q> slice(size_t x0, size_t y0) const
-    {
-        Matrix<Type, P, Q> res(&(_data[x0][y0]));
-        return res;
-    }
-
-    template<size_t P, size_t Q>
-    void set(const Matrix<Type, P, Q> &m, size_t x0, size_t y0)
-    {
-        Matrix<Type, M, N> &self = *this;
-        for (size_t i = 0; i < P; i++) {
-            for (size_t j = 0; j < Q; j++) {
-                self(i + x0, j + y0) = m(i, j);
-            }
-        }
-    }
-
-    void setRow(size_t i, const Matrix<Type, N, 1> &row)
-    {
-        Matrix<Type, M, N> &self = *this;
-        for (size_t j = 0; j < N; j++) {
-            self(i, j) = row(j, 0);
-        }
-    }
-
-    void setCol(size_t j, const Matrix<Type, M, 1> &col)
-    {
-        Matrix<Type, M, N> &self = *this;
-        for (size_t i = 0; i < M; i++) {
-            self(i, j) = col(i, 0);
-        }
-    }
-
     void setZero()
     {
         memset(_data, 0, sizeof(_data));
@@ -371,7 +343,7 @@ public:
         setZero();
         Matrix<Type, M, N> &self = *this;
 
-        for (size_t i = 0; i < M && i < N; i++) {
+        for (size_t i = 0; i < M and i < N; i++) {
             self(i, i) = 1;
         }
     }
@@ -410,7 +382,7 @@ public:
     {
         Matrix<Type, M, N> r;
         for (size_t i=0; i<M; i++) {
-            for (size_t j=0; j<N; j++) {
+            for (size_t j=0; j<M; j++) {
                 r(i,j) = Type(fabs((*this)(i,j)));
             }
         }
@@ -421,7 +393,7 @@ public:
     {
         Type max_val = (*this)(0,0);
         for (size_t i=0; i<M; i++) {
-            for (size_t j=0; j<N; j++) {
+            for (size_t j=0; j<M; j++) {
                 Type val = (*this)(i,j);
                 if (val > max_val) {
                     max_val = val;
@@ -435,7 +407,7 @@ public:
     {
         Type min_val = (*this)(0,0);
         for (size_t i=0; i<M; i++) {
-            for (size_t j=0; j<N; j++) {
+            for (size_t j=0; j<M; j++) {
                 Type val = (*this)(i,j);
                 if (val < min_val) {
                     min_val = val;
@@ -496,6 +468,8 @@ std::ostream& operator<<(std::ostream& os,
     return os;
 }
 #endif // defined(SUPPORT_STDIOSTREAM)
+
+typedef Matrix<float, 3, 3> Matrix3f;
 
 } // namespace matrix
 

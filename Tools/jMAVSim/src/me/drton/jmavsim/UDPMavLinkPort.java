@@ -25,12 +25,8 @@ public class UDPMavLinkPort extends MAVLinkPort {
     private boolean monitorMessage = false;
     private HashSet<Integer> monitorMessageIDs;
     private HashMap<Integer, Integer> messageCounts = new HashMap<Integer, Integer>();
-    
-    static String[] LOCAL_HOST_TERMS = { "localhost", "127.0.0.1" };
-    static int MONITOR_MESSAGE_RATE = 100; // rate at which to print message info
-    static int TIME_PASSING = 10;         // change the print so it's visible to the user.
-    static int time = 0;
 
+    private String[] LOCAL_HOST_TERMS = { "localhost", "127.0.0.1" };
 
     public UDPMavLinkPort(MAVLinkSchema schema) {
         super(schema);
@@ -138,7 +134,7 @@ public class UDPMavLinkPort extends MAVLinkPort {
         if (debug) System.out.println("[handleMessage] msg.name: " + msg.getMsgName() + ", type: " + msg.getMsgType());
 
         try {
-            /*SocketAddress remote =*/ channel.getRemoteAddress();
+            SocketAddress remote = channel.getRemoteAddress();
         } catch (IOException e) {
             System.err.println(e.toString());
         }
@@ -147,12 +143,15 @@ public class UDPMavLinkPort extends MAVLinkPort {
         if (isOpened()) {
             try {
                 stream.write(msg);
-                IndicateReceivedMessage(msg.getMsgType());
             } catch (IOException ignored) {
                 // Silently ignore this exception, we likely just have nobody on this port yet/already
             }
         }
     }
+
+    static int MONITOR_MESSAGE_RATE = 100; // rate at which to print message info
+    static int TIME_PASSING = 10;         // change the print so it's visible to the user.
+    static int time = 0;
 
     private void IndicateReceivedMessage(int type) {
         if (monitorMessage) {
@@ -191,10 +190,10 @@ public class UDPMavLinkPort extends MAVLinkPort {
         while (isOpened()) {
             try {
                 MAVLinkMessage msg = stream.read();
-                if (msg == null)
+                if (msg == null) {
                     break;
-                if (debug) 
-                    System.out.println("[update] msg.name: " + msg.getMsgName() + ", type: " + msg.getMsgType());
+                }
+                if (debug) System.out.println("[update] msg.name: " + msg.getMsgName() + ", type: " + msg.getMsgType());
                 IndicateReceivedMessage(msg.getMsgType());
                 sendMessage(msg);
             } catch (IOException e) {

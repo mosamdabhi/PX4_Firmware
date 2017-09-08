@@ -1,24 +1,24 @@
 /**********************************************************************
 * Copyright (c) 2015 Mark Charlebois
-*
+* 
 * All rights reserved.
-*
+* 
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted (subject to the limitations in the
 * disclaimer below) provided that the following conditions are met:
-*
+* 
 *  * Redistributions of source code must retain the above copyright
 *    notice, this list of conditions and the following disclaimer.
-*
+* 
 *  * Redistributions in binary form must reproduce the above copyright
 *    notice, this list of conditions and the following disclaimer in the
 *    documentation and/or other materials provided with the
 *    distribution.
-*
+* 
 *  * Neither the name of Dronecode Project nor the names of its
 *    contributors may be used to endorse or promote products derived
 *    from this software without specific prior written permission.
-*
+* 
 * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
 * GRANTED BY THIS LICENSE.  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
 * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
@@ -35,7 +35,8 @@
 *************************************************************************/
 #pragma once
 
-#include "DFLog.hpp"
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 
 #include <stdint.h>
 #include <time.h>
@@ -45,13 +46,14 @@
 #include "WorkMgr.hpp"
 #endif
 
-#ifdef __LINUX
+#ifdef __DF_LINUX
 // Show backtrace on error
 #define DF_ENABLE_BACKTRACE 1
 #endif
 
-namespace DriverFramework
-{
+#include "DFLog.hpp"
+
+namespace DriverFramework {
 
 /**
  * Get the absolute time off the system realtime clock
@@ -60,20 +62,10 @@ namespace DriverFramework
  *
  * @return 0 if successful, nonzero else
  */
-int absoluteTime(struct timespec &ts);
+int clockGetRealtime(struct timespec *ts);
 
 // convert offset time to absolute time
-int absoluteTimeInFuture(uint64_t time_us, struct timespec &ts);
-
-/**
- * Get the absolute time off the system monotonic clock
- *
- * @param timespec the realtime time
- *
- * @return 0 if successful, nonzero else
- */
-int clockGetMonotonic(struct timespec &ts);
-
+struct timespec absoluteTimeInFuture(uint64_t time_ms);
 
 #ifdef DF_ENABLE_BACKTRACE
 // Used to show a backtrace while running
@@ -94,4 +86,5 @@ public:
 	static void waitForShutdown();
 };
 
-}
+};
+

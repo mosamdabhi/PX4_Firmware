@@ -2,13 +2,6 @@
  * @file Dcm.hpp
  *
  * A direction cosine matrix class.
- * All rotations and axis systems follow the right-hand rule.
- *
- * This library uses the convention that premultiplying a three dimensional
- * vector represented in coordinate system 1 will apply a rotation from coordinate system
- * 1 to coordinate system 2 to the vector.
- * Likewise, a matrix instance of this class also represents a coordinate transformation
- * from frame 2 to frame 1.
  *
  * @author James Goppert <james.goppert@gmail.com>
  */
@@ -28,16 +21,6 @@ template<typename Type>
 class Euler;
 
 template<typename Type>
-class AxisAngle;
-
-
-/**
- * Direction cosine matrix class
- *
- * The rotation between two coordinate frames is
- * described by this class.
- */
-template<typename Type>
 class Dcm : public Matrix<Type, 3, 3>
 {
 public:
@@ -45,42 +28,19 @@ public:
 
     typedef Matrix<Type, 3, 1> Vector3;
 
-    /**
-     * Standard constructor
-     *
-     * Initializes to identity
-     */
     Dcm() : Matrix<Type, 3, 3>()
     {
         (*this) = eye<Type, 3>();
     }
 
-    /**
-     * Constructor from array
-     *
-     * @param _data pointer to array
-     */
     Dcm(const Type *data_) : Matrix<Type, 3, 3>(data_)
     {
     }
 
-    /**
-     * Copy constructor
-     *
-     * @param other Matrix33 to set dcm to
-     */
     Dcm(const Matrix<Type, 3, 3> &other) : Matrix<Type, 3, 3>(other)
     {
     }
 
-    /**
-     * Constructor from quaternion
-     *
-     * Instance is initialized from quaternion representing
-     * coordinate transformation from frame 2 to frame 1.
-     *
-     * @param q quaternion to set dcm to
-     */
     Dcm(const Quaternion<Type> & q) {
         Dcm &dcm = *this;
         Type a = q(0);
@@ -102,15 +62,6 @@ public:
         dcm(2, 2) = aSq - bSq - cSq + dSq;
     }
 
-    /**
-     * Constructor from euler angles
-     *
-     * This sets the transformation matrix from frame 2 to frame 1 where the rotation
-     * from frame 1 to frame 2 is described by a 3-2-1 intrinsic Tait-Bryan rotation sequence.
-     *
-     *
-     * @param euler euler angle instance
-     */
     Dcm(const Euler<Type> & euler) {
         Dcm &dcm = *this;
         Type cosPhi = Type(cos(euler.phi()));
@@ -131,30 +82,6 @@ public:
         dcm(2, 0) = -sinThe;
         dcm(2, 1) = sinPhi * cosThe;
         dcm(2, 2) = cosPhi * cosThe;
-    }
-
-
-    /**
-     * Constructor from axis angle
-     *
-     * This sets the transformation matrix from frame 2 to frame 1 where the rotation
-     * from frame 1 to frame 2 is described by a 3-2-1 intrinsic Tait-Bryan rotation sequence.
-     *
-     *
-     * @param euler euler angle instance
-     */
-    Dcm(const AxisAngle<Type> & aa) {
-        Dcm &dcm = *this;
-        dcm = Quaternion<Type>(aa);
-    }
-
-    Vector<Type, 3> vee() const {    // inverse to Vector.hat() operation
-        const Dcm &A(*this);
-        Vector<Type, 3> v;
-        v(0) = -A(1,2);
-        v(1) =  A(0,2);
-        v(2) = -A(0,1);
-        return v;
     }
 };
 

@@ -6,16 +6,9 @@
 
 using namespace matrix;
 
-// important to list all classes here for coverage
 template class Quaternion<float>;
 template class Euler<float>;
 template class Dcm<float>;
-template class AxisAngle<float>;
-template class Scalar<float>;
-template class SquareMatrix<float, 2>;
-template class Vector<float, 3>;
-template class Vector2<float>;
-template class Vector3<float>;
 
 int main()
 {
@@ -49,8 +42,7 @@ int main()
     TEST(isEqual(euler_copy, euler_check));
 
     // quaternion ctor
-    Quatf q0(1, 2, 3, 4);
-    Quatf q(q0);
+    Quatf q(1, 2, 3, 4);
     TEST(fabs(q(0) - 1) < eps);
     TEST(fabs(q(1) - 2) < eps);
     TEST(fabs(q(2) - 3) < eps);
@@ -60,7 +52,6 @@ int main()
     q.normalize();
     TEST(isEqual(q, Quatf(0.18257419f,  0.36514837f,
                           0.54772256f,  0.73029674f)));
-    TEST(isEqual(q0.unit(), q));
 
     // quat default ctor
     q = Quatf();
@@ -116,7 +107,7 @@ int main()
                 if (yaw_expected < -180) yaw_expected += 360;
                 if (yaw_expected > 180) yaw_expected -= 360;
 
-                //printf("roll:%d pitch:%d yaw:%d\n", roll, pitch, yaw);
+                printf("roll:%d pitch:%d yaw:%d\n", roll, pitch, yaw);
                 Euler<double> euler_expected(
                     deg2rad*double(roll_expected),
                     deg2rad*double(pitch),
@@ -126,7 +117,7 @@ int main()
                     deg2rad*double(pitch),
                     deg2rad*double(yaw));
                 Dcm<double> dcm_from_euler(euler);
-                //dcm_from_euler.print();
+                dcm_from_euler.print();
                 Euler<double> euler_out(dcm_from_euler);
                 TEST(isEqual(rad2deg*euler_expected, rad2deg*euler_out));
 
@@ -137,8 +128,7 @@ int main()
                 Eulerf eulerf(float(deg2rad)*float(roll),
                               float(deg2rad)*float(pitch),
                               float(deg2rad)*float(yaw));
-                Dcm<float> dcm_from_eulerf;
-                dcm_from_eulerf = eulerf;
+                Dcm<float> dcm_from_eulerf(eulerf);
                 Euler<float> euler_outf(dcm_from_eulerf);
                 TEST(isEqual(float(rad2deg)*eulerf_expected,
                              float(rad2deg)*euler_outf));
@@ -239,36 +229,6 @@ int main()
     TEST(fabsf(q(2) - q_true(2)) < eps);
     TEST(fabsf(q(3) - q_true(3)) < eps);
 
-    // Quaternion initialisation per array
-    float q_array[] = {0.9833f, -0.0343f, -0.1060f, -0.1436f};
-    Quaternion<float>q_from_array(q_array);
-    for(int i = 0; i < 4; i++)
-        TEST(fabsf(q_from_array(i) - q_array[i]) < eps);
-
-    // axis angle
-    AxisAnglef aa_true(Vector3f(1.0f, 2.0f, 3.0f));
-    TEST(isEqual(aa_true, Vector3f(1.0f, 2.0f, 3.0f)));
-    AxisAnglef aa_empty;
-    TEST(isEqual(aa_empty, AxisAnglef(0.0f, 0.0f, 0.0f)));
-    float aa_data[] =  {4.0f, 5.0f, 6.0f};
-    AxisAnglef aa_data_init(aa_data);
-    TEST(isEqual(aa_data_init, AxisAnglef(4.0f, 5.0f, 6.0f)));
-
-    q = Quatf(-0.29555112749297824f, 0.25532186f,  0.51064372f,  0.76596558f);
-    AxisAnglef aa_q_init(q);
-    TEST(isEqual(aa_q_init, AxisAnglef(1.0f, 2.0f, 3.0f)));
-
-    AxisAnglef aa_euler_init(Eulerf(0.0f, 0.0f, 0.0f));
-    TEST(isEqual(aa_euler_init, Vector3f(0.0f, 0.0f, 0.0f)));
-
-    Dcmf dcm_aa_check = AxisAnglef(dcm_check);
-    TEST(isEqual(dcm_aa_check, dcm_check));
-
-    AxisAnglef aa_axis_angle_init(Vector3f(1.0f, 2.0f, 3.0f), 3.0f);
-    TEST(isEqual(aa_axis_angle_init, Vector3f(0.80178373f, 1.60356745f, 2.40535118f)));
-
-    TEST(isEqual(Quatf((AxisAnglef(Vector3f(0.0f, 0.0f, 1.0f), 0.0f))),
-                 Quatf(1.0f, 0.0f, 0.0f, 0.0f)));
 };
 
 /* vim: set et fenc=utf-8 ff=unix sts=0 sw=4 ts=4 : */

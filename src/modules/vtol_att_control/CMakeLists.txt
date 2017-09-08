@@ -33,8 +33,9 @@
 px4_add_module(
 	MODULE modules__vtol_att_control
 	MAIN vtol_att_control
-	STACK_MAIN 1300
-	COMPILE_FLAGS -Os
+	COMPILE_FLAGS
+		-Wno-write-strings
+		
 	SRCS
 		vtol_att_control_main.cpp
 		tiltrotor.cpp

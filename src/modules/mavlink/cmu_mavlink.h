@@ -1,7 +1,7 @@
 #pragma once
 
 #include <uORB/uORB.h>
-#include <v2.0/cmu_mavlink/mavlink.h>
+#include <v1.0/cmu_mavlink/mavlink.h>
 
 class Mavlink;
 
@@ -49,9 +49,7 @@ private:
     time_offset =
       (time_offset_avg_alpha*offset_ns) + (1.0 - time_offset_avg_alpha)*time_offset;
   }
-//Moses
-  uint64_t prev_time = 0;
-  uint64_t prev_time_on = 0;
+
   Mavlink* mavlink;
   int system_id;
   double time_offset_avg_alpha;

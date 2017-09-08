@@ -1,6 +1,7 @@
 /****************************************************************************
  *
- *   Copyright (C) 2015-2016 Mark Charlebois. All rights reserved.
+ *   Copyright (C) 2015 Mark Charlebois. All rights reserved.
+ *   Author: @author Mark Charlebois <charlebm#gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,18 +33,14 @@
  ****************************************************************************/
 
 /**
- * @file px4_qurt_tasks.c
- * Implementation of existing task API for QURT.
- *
- * @author Mark Charlebois <charlebm@gmail.com>
+ * @file px4_posix_tasks.c
+ * Implementation of existing task API for Linux
  */
 
 #include "px4_log.h"
 #include "px4_posix.h"
 #include "px4_workqueue.h"
-#include "px4_time.h"
 #include "hrt_work.h"
-#include <drivers/drv_hrt.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +61,6 @@
 #include <string>
 
 #include <px4_tasks.h>
-#include <systemlib/err.h>
 
 #define MAX_CMD_LEN 100
 
@@ -95,7 +91,7 @@ static void *entry_adapter(void *ptr)
 	data = (pthdata_t *) ptr;
 
 	data->entry(data->argc, data->argv);
-	//PX4_WARN("Before waiting infinte busy loop");
+	PX4_WARN("Before waiting infinte busy loop");
 	//for( ;; )
 	//{
 	//   volatile int x = 0;
@@ -110,15 +106,12 @@ static void *entry_adapter(void *ptr)
 void
 px4_systemreset(bool to_bootloader)
 {
-	PX4_WARN("Called px4_system_reset but NOT yet implemented.");
+	PX4_WARN("Called px4_system_reset");
 }
 
 px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int stack_size, px4_main_t entry,
 			      char *const argv[])
 {
-	struct sched_param param;
-	pthread_attr_t attr;
-	pthread_t task;
 	int rv;
 	int argc = 0;
 	int i;
@@ -128,7 +121,9 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 	char *p = (char *)argv;
 
 	PX4_DEBUG("Creating %s\n", name);
-	PX4_DEBUG("attr address: 0x%X, param address: 0x%X", &attr, &param);
+	pthread_t task;
+	pthread_attr_t attr;
+	struct sched_param param;
 
 	// Calculate argc
 	while (p != (char *)0) {
@@ -143,7 +138,7 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 	}
 
 	structsize = sizeof(pthdata_t) + (argc + 1) * sizeof(char *);
-	pthdata_t *taskdata = nullptr;
+	pthdata_t *taskdata;
 
 	// not safe to pass stack data to the thread creation
 	taskdata = (pthdata_t *)malloc(structsize + len);
@@ -169,10 +164,7 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 		return (rv < 0) ? rv : -rv;
 	}
 
-	PX4_DEBUG("stack address after pthread_attr_init: 0x%X", attr.stackaddr);
-	PX4_DEBUG("attr address: 0x%X, param address: 0x%X", &attr, &param);
 	rv = pthread_attr_getschedparam(&attr, &param);
-	PX4_DEBUG("stack address after pthread_attr_getschedparam: 0x%X", attr.stackaddr);
 
 	if (rv != 0) {
 		PX4_WARN("px4_task_spawn_cmd: failed to get thread sched param");
@@ -197,27 +189,28 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 #endif
 	size_t fixed_stacksize = -1;
 	pthread_attr_getstacksize(&attr, &fixed_stacksize);
-	PX4_DEBUG("stack size: %d passed stacksize(%d)", fixed_stacksize, stack_size);
+	PX4_WARN("stack size: %d passed stacksize(%d)", fixed_stacksize, stack_size);
 	fixed_stacksize = 8 * 1024;
 	fixed_stacksize = (fixed_stacksize < (size_t)stack_size) ? (size_t)stack_size : fixed_stacksize;
 
-	PX4_DEBUG("setting the thread[%s] stack size to[%d]", name, fixed_stacksize);
+	PX4_WARN("setting the thread[%s] stack size to[%d]", name, fixed_stacksize);
 	pthread_attr_setstacksize(&attr, fixed_stacksize);
+	//pthread_attr_setstacksize(&attr, stack_size);
 
-	PX4_DEBUG("stack address after pthread_attr_setstacksize: 0x%X", attr.stackaddr);
+
 	param.sched_priority = priority;
 
 	rv = pthread_attr_setschedparam(&attr, &param);
 
 	if (rv != 0) {
-		PX4_ERR("px4_task_spawn_cmd: failed to set sched param");
+		PX4_WARN("px4_task_spawn_cmd: failed to set sched param");
 		return (rv < 0) ? rv : -rv;
 	}
 
 	rv = pthread_create(&task, &attr, &entry_adapter, (void *) taskdata);
 
 	if (rv != 0) {
-		PX4_ERR("px4_task_spawn_cmd: pthread_create failed, error: %d", rv);
+
 		return (rv < 0) ? rv : -rv;
 	}
 
@@ -326,6 +319,8 @@ void px4_show_tasks()
 
 }
 
+__BEGIN_DECLS
+
 unsigned long px4_getpid()
 {
 	pthread_t pid = pthread_self();
@@ -340,15 +335,13 @@ unsigned long px4_getpid()
 		}
 	}
 
-#ifndef __PX4_QURT
-	// XXX This doesn't seem to be working on QURT
 	PX4_ERR("px4_getpid() called from unknown thread context!");
-#endif
 	return ~0;
 }
 
 
-const char *px4_get_taskname()
+const char *getprogname();
+const char *getprogname()
 {
 	pthread_t pid = pthread_self();
 
@@ -372,15 +365,9 @@ int px4_sem_timedwait(px4_sem_t *sem, const struct timespec *ts)
 {
 	work_s _hpwork = {};
 
-	// Get the current time.
-	struct timespec ts_now;
-	px4_clock_gettime(CLOCK_MONOTONIC, &ts_now);
-
-	// We get an absolute time but want to calculate a timeout in us.
-	hrt_abstime timeout_us = ts_to_abstime((struct timespec *)ts) - ts_to_abstime(&ts_now);
-
-	// Create a timer to unblock.
-	hrt_work_queue(&_hpwork, (worker_t)&timer_cb, (void *)sem, timeout_us);
+	// Create a timer to unblock
+	uint32_t timeout = ts->tv_sec * 1000000 + (ts->tv_nsec / 1000);
+	hrt_work_queue(&_hpwork, (worker_t)&timer_cb, (void *)sem, timeout);
 	sem_wait(sem);
 	hrt_work_cancel(&_hpwork);
 	return 0;
@@ -405,3 +392,4 @@ int px4_prctl(int option, const char *arg2, unsigned pid)
 
 	return rv;
 }
+__END_DECLS

@@ -157,7 +157,8 @@ private:
 	unsigned		_measure_ticks;
 
 	ringbuffer::RingBuffer	*_reports;
-	struct mag_calibration_s	_scale;
+	mag_scale		_scale;
+	mag_params		_mag_params;
 	float 			_range_scale;
 	float 			_range_ga;
 	bool			_collect_phase;
@@ -355,17 +356,18 @@ HMC5883::HMC5883(device::Device *interface, const char *path, enum Rotation rota
 	_measure_ticks(0),
 	_reports(nullptr),
 	_scale{},
+        _mag_params{},
 	_range_scale(0), /* default range scale from counts to gauss */
-	_range_ga(1.9f),
+	_range_ga(1.3f),
 	_collect_phase(false),
 	_class_instance(-1),
 	_orb_class_instance(-1),
 	_mag_topic(nullptr),
 	_sample_perf(perf_alloc(PC_ELAPSED, "hmc5883_read")),
-	_comms_errors(perf_alloc(PC_COUNT, "hmc5883_com_err")),
-	_buffer_overflows(perf_alloc(PC_COUNT, "hmc5883_buf_of")),
-	_range_errors(perf_alloc(PC_COUNT, "hmc5883_rng_err")),
-	_conf_errors(perf_alloc(PC_COUNT, "hmc5883_conf_err")),
+	_comms_errors(perf_alloc(PC_COUNT, "hmc5883_comms_errors")),
+	_buffer_overflows(perf_alloc(PC_COUNT, "hmc5883_buffer_overflows")),
+	_range_errors(perf_alloc(PC_COUNT, "hmc5883_range_errors")),
+	_conf_errors(perf_alloc(PC_COUNT, "hmc5883_conf_errors")),
 	_sensor_ok(false),
 	_calibrated(false),
 	_rotation(rotation),
@@ -387,6 +389,17 @@ HMC5883::HMC5883(device::Device *interface, const char *path, enum Rotation rota
 	_scale.y_scale = 1.0f;
 	_scale.z_offset = 0;
 	_scale.z_scale = 1.0f;
+
+        // default magnetic correction matrix values
+        _mag_params.M_xx = 1.0f;
+        _mag_params.M_xy = 0.0f;
+        _mag_params.M_xz = 0.0f;
+        _mag_params.M_yx = 0.0f;
+        _mag_params.M_yy = 1.0f;
+        _mag_params.M_yz = 0.0f;
+        _mag_params.M_zx = 0.0f;
+        _mag_params.M_zy = 0.0f;
+        _mag_params.M_zz = 1.0f;
 
 	// work_cancel in the dtor will explode if we don't do this...
 	memset(&_work, 0, sizeof(_work));
@@ -436,6 +449,7 @@ HMC5883::init()
 	reset();
 
 	_class_instance = register_class_devname(MAG_BASE_DEVICE_PATH);
+	printf("HMC5883 MAG Device: %s%u\n", MAG_BASE_DEVICE_PATH, _class_instance);
 
 	ret = OK;
 	/* sensor is ok, but not calibrated */
@@ -698,14 +712,14 @@ HMC5883::ioctl(struct file *filp, int cmd, unsigned long arg)
 				return -EINVAL;
 			}
 
-			irqstate_t flags = px4_enter_critical_section();
+			irqstate_t flags = irqsave();
 
 			if (!_reports->resize(arg)) {
-				px4_leave_critical_section(flags);
+				irqrestore(flags);
 				return -ENOMEM;
 			}
 
-			px4_leave_critical_section(flags);
+			irqrestore(flags);
 
 			return OK;
 		}
@@ -737,15 +751,25 @@ HMC5883::ioctl(struct file *filp, int cmd, unsigned long arg)
 
 	case MAGIOCSSCALE:
 		/* set new scale factors */
-		memcpy(&_scale, (struct mag_calibration_s *)arg, sizeof(_scale));
+		memcpy(&_scale, (mag_scale *)arg, sizeof(_scale));
 		/* check calibration, but not actually return an error */
 		(void)check_calibration();
 		return 0;
 
 	case MAGIOCGSCALE:
 		/* copy out scale factors */
-		memcpy((struct mag_calibration_s *)arg, &_scale, sizeof(_scale));
+		memcpy((mag_scale *)arg, &_scale, sizeof(_scale));
 		return 0;
+
+          case MAGIOCSPARAM:
+            /* set new magnetic correction parameters */
+            memcpy(&_mag_params, (mag_params *)arg, sizeof(_mag_params));
+            return 0;
+
+          case MAGIOCGPARAM:
+            /* copy out magnetic correction parameters */
+            memcpy((mag_params *)arg, &_mag_params, sizeof(_mag_params));
+            return 0;
 
 	case MAGIOCCALIBRATE:
 		return calibrate(filp, arg);
@@ -792,8 +816,8 @@ HMC5883::stop()
 int
 HMC5883::reset()
 {
-	/* set range, ceil floating point number */
-	return set_range(_range_ga + 0.5f);
+	/* set range */
+	return set_range(_range_ga);
 }
 
 void
@@ -891,9 +915,9 @@ HMC5883::collect()
 	struct mag_report new_report;
 	bool sensor_is_onboard = false;
 
-	float xraw_f;
-	float yraw_f;
-	float zraw_f;
+  float xraw_f;
+  float yraw_f;
+  float zraw_f;
 
 	/* this should be fairly close to the end of the measurement, so the best approximation of the time */
 	new_report.timestamp = hrt_absolute_time();
@@ -999,6 +1023,7 @@ HMC5883::collect()
 		report.x = -report.x;
 	}
 
+
 	/* the standard external mag by 3DR has x pointing to the
 	 * right, y pointing backwards, and z down, therefore switch x
 	 * and y and invert y */
@@ -1009,7 +1034,7 @@ HMC5883::collect()
 	// apply user specified rotation
 	rotate_3f(_rotation, xraw_f, yraw_f, zraw_f);
 
-	new_report.x = ((xraw_f * _range_scale) - _scale.x_offset) * _scale.x_scale;
+  new_report.x = ((xraw_f * _range_scale) - _scale.x_offset) * _scale.x_scale;
 	/* flip axes and negate value for y */
 	new_report.y = ((yraw_f * _range_scale) - _scale.y_offset) * _scale.y_scale;
 	/* z remains z */
@@ -1024,6 +1049,8 @@ HMC5883::collect()
 		} else {
 			_mag_topic = orb_advertise_multi(ORB_ID(sensor_mag), &new_report,
 							 &_orb_class_instance, (sensor_is_onboard) ? ORB_PRIO_HIGH : ORB_PRIO_MAX);
+
+                        printf("HMC5883 mag orb instance (should be 0) = %d\n", _orb_class_instance);
 
 			if (_mag_topic == nullptr) {
 				DEVICE_DEBUG("ADVERT FAIL");
@@ -1075,21 +1102,23 @@ int HMC5883::calibrate(struct file *filp, unsigned enable)
 	// XXX do something smarter here
 	int fd = (int)enable;
 
-	struct mag_calibration_s mscale_previous;
-	mscale_previous.x_offset = 0.0f;
-	mscale_previous.x_scale = 1.0f;
-	mscale_previous.y_offset = 0.0f;
-	mscale_previous.y_scale = 1.0f;
-	mscale_previous.z_offset = 0.0f;
-	mscale_previous.z_scale = 1.0f;
+	struct mag_scale mscale_previous = {
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+	};
 
-	struct mag_calibration_s mscale_null;
-	mscale_null.x_offset = 0.0f;
-	mscale_null.x_scale = 1.0f;
-	mscale_null.y_offset = 0.0f;
-	mscale_null.y_scale = 1.0f;
-	mscale_null.z_offset = 0.0f;
-	mscale_null.z_scale = 1.0f;
+	struct mag_scale mscale_null = {
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+	};
 
 	float sum_excited[3] = {0.0f, 0.0f, 0.0f};
 
@@ -1102,7 +1131,7 @@ int HMC5883::calibrate(struct file *filp, unsigned enable)
 
 	/* start the sensor polling at 50 Hz */
 	if (OK != ioctl(filp, SENSORIOCSPOLLRATE, 50)) {
-		warn("FAILED: SENSORIOCSPOLLRATE 50Hz");
+		warn("FAILED: SENSORIOCSPOLLRATE 2Hz");
 		ret = 1;
 		goto out;
 	}
@@ -1110,7 +1139,7 @@ int HMC5883::calibrate(struct file *filp, unsigned enable)
 	/* Set to 2.5 Gauss. We ask for 3 to get the right part of
 	 * the chained if statement above. */
 	if (OK != ioctl(filp, MAGIOCSRANGE, 3)) {
-		warnx("FAILED: MAGIOCSRANGE 2.5 Ga");
+		warnx("FAILED: MAGIOCSRANGE 3.3 Ga");
 		ret = 1;
 		goto out;
 	}
@@ -1157,8 +1186,8 @@ int HMC5883::calibrate(struct file *filp, unsigned enable)
 		}
 	}
 
-	/* read the sensor up to 150x, stopping when we have 50 good values */
-	for (uint8_t i = 0; i < 150 && good_count < 50; i++) {
+	/* read the sensor up to 100x, stopping when we have 30 good values */
+	for (uint8_t i = 0; i < 100 && good_count < 30; i++) {
 		struct pollfd fds;
 
 		/* wait for data to be ready */
@@ -1185,9 +1214,9 @@ int HMC5883::calibrate(struct file *filp, unsigned enable)
 				fabsf(expected_cal[2] / report.z)
 			       };
 
-		if (cal[0] > 0.3f && cal[0] < 1.7f &&
-		    cal[1] > 0.3f && cal[1] < 1.7f &&
-		    cal[2] > 0.3f && cal[2] < 1.7f) {
+		if (cal[0] > 0.7f && cal[0] < 1.35f &&
+		    cal[1] > 0.7f && cal[1] < 1.35f &&
+		    cal[2] > 0.7f && cal[2] < 1.35f) {
 			good_count++;
 			sum_excited[0] += cal[0];
 			sum_excited[1] += cal[1];
@@ -1220,9 +1249,9 @@ out:
 	}
 
 	/* set back to normal mode */
-	/* Set to 1.9 Gauss */
-	if (OK != ::ioctl(fd, MAGIOCSRANGE, 2)) {
-		warnx("FAILED: MAGIOCSRANGE 1.9 Ga");
+	/* Set to 1.1 Gauss */
+	if (OK != ::ioctl(fd, MAGIOCSRANGE, 1)) {
+		warnx("FAILED: MAGIOCSRANGE 1.1 Ga");
 	}
 
 	if (OK != ::ioctl(fd, MAGIOCEXSTRAP, 0)) {

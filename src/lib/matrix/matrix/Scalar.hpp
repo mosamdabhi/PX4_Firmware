@@ -34,33 +34,15 @@ public:
         _value = other(0,0);
     }
 
-    Scalar(Type other)
+    Scalar(float other)
     {
         _value = other;
     }
 
-    operator Type &()
+    operator Type()
     {
         return _value;
     }
-
-    operator Type const &() const
-    {
-        return _value;
-    }
-
-    operator Matrix<Type, 1, 1>() const {
-        Matrix<Type, 1, 1> m;
-        m(0, 0) = _value;
-        return m;
-    }
-
-    operator Vector<Type, 1>() const {
-        Vector<Type, 1> m;
-        m(0) = _value;
-        return m;
-    }
-
 private:
     Type _value;
 

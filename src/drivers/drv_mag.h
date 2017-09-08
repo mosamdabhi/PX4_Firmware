@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,13 +53,26 @@
 #define mag_report sensor_mag_s
 
 /** mag scaling factors; Vout = (Vin * Vscale) + Voffset */
-struct mag_calibration_s {
+struct mag_scale {
 	float	x_offset;
 	float	x_scale;
 	float	y_offset;
 	float	y_scale;
 	float	z_offset;
 	float	z_scale;
+};
+
+/** mag correction matrix parameters **/
+struct mag_params {
+  float M_xx;
+  float M_xy;
+  float M_xz;
+  float M_yx;
+  float M_yy;
+  float M_yz;
+  float M_zx;
+  float M_zy;
+  float M_zz;
 };
 
 /*
@@ -107,5 +120,11 @@ struct mag_calibration_s {
 
 /** enable/disable temperature compensation */
 #define MAGIOCSTEMPCOMP		_MAGIOC(12)
+
+/** set the mag param constants to the structure pointed to by (arg) */
+#define MAGIOCSPARAM      _MAGIOC(13)
+
+/** get the mag param constants into the structure pointed to by (arg) */
+#define MAGIOCGPARAM      _MAGIOC(14)
 
 #endif /* _DRV_MAG_H */

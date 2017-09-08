@@ -55,7 +55,6 @@ DataValidator::DataValidator(DataValidator *prev_sibling) :
 	_M2{0.0f},
 	_rms{0.0f},
 	_value{0.0f},
-	_vibe{0.0f},
 	_value_equal_count(0),
 	_sibling(prev_sibling)
 {
@@ -68,15 +67,7 @@ DataValidator::~DataValidator()
 }
 
 void
-DataValidator::put(uint64_t timestamp, float val, uint64_t error_count_in, int priority_in)
-{
-	float data[dimensions] = { val }; //sets the first value and all others to 0
-
-	put(timestamp, data, error_count_in, priority_in);
-}
-
-void
-DataValidator::put(uint64_t timestamp, float val[dimensions], uint64_t error_count_in, int priority_in)
+DataValidator::put(uint64_t timestamp, float val[3], uint64_t error_count_in, int priority_in)
 {
 	_event_count++;
 
@@ -89,7 +80,7 @@ DataValidator::put(uint64_t timestamp, float val[dimensions], uint64_t error_cou
 	_error_count = error_count_in;
 	_priority = priority_in;
 
-	for (unsigned i = 0; i < dimensions; i++) {
+	for (unsigned i = 0; i < _dimensions; i++) {
 		if (_time_last == 0) {
 			_mean[i] = 0;
 			_lp[i] = val[i];
@@ -109,10 +100,8 @@ DataValidator::put(uint64_t timestamp, float val[dimensions], uint64_t error_cou
 			}
 		}
 
-		_vibe[i] = _vibe[i] * 0.99f + 0.01f * fabsf(val[i] - _lp[i]);
-
 		// XXX replace with better filter, make it auto-tune to update rate
-		_lp[i] = _lp[i] * 0.99f + 0.01f * val[i];
+		_lp[i] = _lp[i] * 0.5f + val[i] * 0.5f;
 
 		_value[i] = val[i];
 	}
@@ -172,7 +161,7 @@ DataValidator::print()
 		return;
 	}
 
-	for (unsigned i = 0; i < dimensions; i++) {
+	for (unsigned i = 0; i < _dimensions; i++) {
 		ECL_INFO("\tval: %8.4f, lp: %8.4f mean dev: %8.4f RMS: %8.4f conf: %8.4f",
 			(double) _value[i], (double)_lp[i], (double)_mean[i],
 			(double)_rms[i], (double)confidence(hrt_absolute_time()));

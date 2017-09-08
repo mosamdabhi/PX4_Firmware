@@ -31,7 +31,7 @@
 #
 ############################################################################
 
-include(../../cmake/df_common.cmake)
+include(../../cmake/df_add_library.cmake)
 
 if("${DF_TARGET}" STREQUAL "nuttx")
 	add_library(df_driver_framework
@@ -45,16 +45,11 @@ if("${DF_TARGET}" STREQUAL "nuttx")
 else()
 	df_add_library(df_driver_framework
 		DriverFramework.cpp
-		WorkMgr.cpp
-		WorkItems.cpp
 		DevMgr.cpp
 		DevObj.cpp
 		SyncObj.cpp
 		DFList.cpp
 		Time.cpp
-		DFDiag.cpp
-		I2CDevObj.cpp
-		SPIDevObj.cpp
 		)
 endif()
 

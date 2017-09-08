@@ -46,8 +46,6 @@
 
 class __EXPORT DataValidator {
 public:
-	static const unsigned dimensions = 3;
-
 	DataValidator(DataValidator *prev_sibling = nullptr);
 	virtual ~DataValidator();
 
@@ -56,14 +54,7 @@ public:
 	 *
 	 * @param val		Item to put
 	 */
-	void			put(uint64_t timestamp, float val, uint64_t error_count, int priority);
-
-	/**
-	 * Put a 3D item into the validator.
-	 *
-	 * @param val		Item to put
-	 */
-	void			put(uint64_t timestamp, float val[dimensions], uint64_t error_count, int priority);
+	void			put(uint64_t timestamp, float val[3], uint64_t error_count, int priority);
 
 	/**
 	 * Get the next sibling in the group
@@ -120,12 +111,6 @@ public:
 	float*			rms() { return _rms; }
 
 	/**
-	 * Get the vibration offset
-	 * @return		the stored vibration offset
-	 */
-	float*			vibration_offset() { return _vibe; }
-
-	/**
 	 * Print the validator value
 	 *
 	 */
@@ -149,6 +134,7 @@ public:
 	static constexpr uint32_t ERROR_FLAG_HIGH_ERRDENSITY 	= (0x00000001U << 4);
 
 private:
+	static const unsigned _dimensions = 3;
 	uint32_t _error_mask;			/**< sensor error state */
 	uint64_t _time_last;			/**< last timestamp */
 	uint64_t _timeout_interval;		/**< interval in which the datastream times out in us */
@@ -156,17 +142,16 @@ private:
 	uint64_t _error_count;			/**< error count */
 	int _error_density;			/**< ratio between successful reads and errors */
 	int _priority;				/**< sensor nominal priority */
-	float _mean[dimensions];		/**< mean of value */
-	float _lp[dimensions];			/**< low pass value */
-	float _M2[dimensions];			/**< RMS component value */
-	float _rms[dimensions];			/**< root mean square error */
-	float _value[dimensions];		/**< last value */
-	float _vibe[dimensions];		/**< vibration level, in sensor unit */
+	float _mean[_dimensions];		/**< mean of value */
+	float _lp[3];				/**< low pass value */
+	float _M2[3];				/**< RMS component value */
+	float _rms[3];				/**< root mean square error */
+	float _value[3];			/**< last value */
 	float _value_equal_count;		/**< equal values in a row */
 	DataValidator *_sibling;		/**< sibling in the group */
-	static const constexpr unsigned NORETURN_ERRCOUNT = 10000;	/**< if the error count reaches this value, return sensor as invalid */
-	static const constexpr float ERROR_DENSITY_WINDOW = 100.0f; 	/**< window in measurement counts for errors */
-	static const constexpr unsigned VALUE_EQUAL_COUNT_MAX = 100;	/**< if the sensor value is the same (accumulated also between axes) this many times, flag it */
+	const unsigned NORETURN_ERRCOUNT = 10000;	/**< if the error count reaches this value, return sensor as invalid */
+	const float ERROR_DENSITY_WINDOW = 100.0f; /**< window in measurement counts for errors */
+	const unsigned VALUE_EQUAL_COUNT_MAX = 100;	/**< if the sensor value is the same (accumulated also between axes) this many times, flag it */
 
 	/* we don't want this class to be copied */
 	DataValidator(const DataValidator&);

@@ -12,13 +12,6 @@ project(libuavcan_linux)
 install(DIRECTORY include/uavcan_linux DESTINATION include)
 
 #
-# Scripts
-#
-install(DIRECTORY scripts/
-        USE_SOURCE_PERMISSIONS
-        DESTINATION bin)
-
-#
 # System dependecies 
 #
 find_package(Threads REQUIRED)
@@ -44,10 +37,6 @@ endif ()
 #
 include_directories(include)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -std=c++11")  # GCC or Clang
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DUAVCAN_DEBUG=1)
-endif()
 
 #
 # Tests

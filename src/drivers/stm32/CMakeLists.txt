@@ -36,10 +36,7 @@ px4_add_module(
 		-Os
 	SRCS
 		drv_hrt.c
-		drv_io_timer.c
 		drv_pwm_servo.c
-		drv_input_capture.c
-		drv_led_pwm.cpp
 	DEPENDS
 		platforms__common
 	)

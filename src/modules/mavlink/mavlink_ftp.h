@@ -50,7 +50,7 @@ class MavlinkFtpTest;
 class MavlinkFTP : public MavlinkStream
 {
 public:
-	/// @brief Constructor is only public so unit test code can new objects.
+	/// @brief Contructor is only public so unit test code can new objects.
 	MavlinkFTP(Mavlink *mavlink);
 	~MavlinkFTP();
 

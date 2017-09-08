@@ -23,7 +23,6 @@ A simple and efficient template based matrix library.
 	* Quaternion
 	* Dcm
 	* Euler (Body 321)
-	* Axis Angle
 
 * matrix/filter.hpp : Provides filtering routines.
 	* kalman_correct
@@ -32,8 +31,6 @@ A simple and efficient template based matrix library.
 	* integrate_rk4 (Runge-Kutta 4th order)
 
 ## Example
-
-See the test directory for detailed examples. Some simple examples are included below:
 
 ```c++
 	// define an euler angle (Body 3(yaw)-2(pitch)-1(roll) rotation)
@@ -47,21 +44,6 @@ See the test directory for detailed examples. Some simple examples are included 
 
 	// convert to DCM from quaternion
 	Dcmf dcm(q_nb);
-
-	// you can assign a rotation instance that already exist to another rotation instance, e.g.
-	dcm = euler;
-
-	// you can also directly create a DCM instance from euler angles like this
-	dcm = Eulerf(roll, pitch, yaw);
-
-	// create an axis angle representation from euler angles
-	AxisAngle<float> axis_angle = euler;
-
-	// use axis angle to initialize a DCM
-	Dcmf dcm2(AxisAngle(1, 2, 3));
-	
-	// use axis angle with axis/angle separated to init DCM
-	Dcmf dcm3(AxisAngle(Vector3f(1, 0, 0), 0.2));
 
 	// do some kalman filtering
 	const size_t n_x = 5;
@@ -109,18 +91,4 @@ See the test directory for detailed examples. Some simple examples are included 
 	// correction
 	x += K*r;
 
-	// slicing
-    float data[9] = {0, 2, 3,
-                     4, 5, 6,
-                     7, 8, 10
-                    };
-    SquareMatrix<float, 3> A(data);
-
-	// Slice a 3,3 matrix starting at row 1, col 0,
-	// with size 2 x 3, warning, no size checking
-    Matrix<float, 2, 3> B(A.slice<2, 3>(1, 0));
-
-	// this results in:
-	// 4, 5, 6
-	// 7, 8, 10
 ```

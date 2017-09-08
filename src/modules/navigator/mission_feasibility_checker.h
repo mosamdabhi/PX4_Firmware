@@ -36,7 +36,6 @@
  *
  * @author Lorenz Meier <lm@inf.ethz.ch>
  * @author Thomas Gubler <thomasgubler@student.ethz.ch>
- * @author Sander Smeets <sander@droneslab.com>
  */
 
 #ifndef MISSION_FEASIBILITY_CHECKER_H_
@@ -44,7 +43,7 @@
 
 #include <unistd.h>
 #include <uORB/topics/mission.h>
-#include <uORB/topics/fw_pos_ctrl_status.h>
+#include <uORB/topics/navigation_capabilities.h>
 #include <dataman/dataman.h>
 #include "geofence.h"
 
@@ -52,10 +51,10 @@
 class MissionFeasibilityChecker
 {
 private:
-	orb_advert_t		*_mavlink_log_pub;
+	int		_mavlink_fd;
 
-	int _fw_pos_ctrl_status_sub;
-	struct fw_pos_ctrl_status_s _fw_pos_ctrl_status;
+	int _capabilities_sub;
+	struct navigation_capabilities_s _nav_caps;
 
 	bool _initDone;
 	bool _dist_1wp_ok;
@@ -66,7 +65,6 @@ private:
 	bool checkHomePositionAltitude(dm_item_t dm_current, size_t nMissionItems, float home_alt, bool home_valid, bool &warning_issued, bool throw_error = false);
 	bool checkMissionItemValidity(dm_item_t dm_current, size_t nMissionItems, bool condition_landed);
 	bool check_dist_1wp(dm_item_t dm_current, size_t nMissionItems, double curr_lat, double curr_lon, float dist_first_wp, bool &warning_issued);
-	bool isPositionCommand(unsigned cmd);
 
 	/* Checks specific to fixedwing airframes */
 	bool checkMissionFeasibleFixedwing(dm_item_t dm_current, size_t nMissionItems, Geofence &geofence, float home_alt, bool home_valid);
@@ -78,16 +76,12 @@ private:
 public:
 
 	MissionFeasibilityChecker();
-
-	MissionFeasibilityChecker(const MissionFeasibilityChecker &) = delete;
-	MissionFeasibilityChecker &operator=(const MissionFeasibilityChecker &) = delete;
-
 	~MissionFeasibilityChecker() {}
 
 	/*
 	 * Returns true if mission is feasible and false otherwise
 	 */
-	bool checkMissionFeasible(orb_advert_t *mavlink_log_pub, bool isRotarywing, dm_item_t dm_current,
+	bool checkMissionFeasible(int mavlink_fd, bool isRotarywing, dm_item_t dm_current,
 		size_t nMissionItems, Geofence &geofence, float home_alt, bool home_valid,
 		double curr_lat, double curr_lon, float max_waypoint_distance, bool &warning_issued, float default_acceptance_rad,
 		bool condition_landed);

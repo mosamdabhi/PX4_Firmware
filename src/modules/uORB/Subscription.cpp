@@ -45,10 +45,10 @@
 #include "topics/hil_sensor.h"
 #include "topics/vehicle_attitude.h"
 #include "topics/vehicle_global_position.h"
+#include "topics/encoders.h"
 #include "topics/position_setpoint_triplet.h"
 #include "topics/vehicle_status.h"
 #include "topics/manual_control_setpoint.h"
-#include "topics/mavlink_log.h"
 #include "topics/vehicle_local_position_setpoint.h"
 #include "topics/vehicle_local_position.h"
 #include "topics/vehicle_attitude_setpoint.h"
@@ -62,8 +62,6 @@
 #include "topics/actuator_armed.h"
 #include "topics/att_pos_mocap.h"
 #include "topics/vision_position_estimate.h"
-#include "topics/control_state.h"
-#include "topics/vehicle_land_detected.h"
 
 #include <px4_defines.h>
 
@@ -128,13 +126,6 @@ Subscription<T>::Subscription(const struct orb_metadata *meta,
 }
 
 template <class T>
-Subscription<T>::Subscription(const Subscription &other) :
-	SubscriptionNode(other._meta, other._interval, other._instance, nullptr),
-	_data() // initialize data structure to zero
-{
-}
-
-template <class T>
 Subscription<T>::~Subscription()
 {
 }
@@ -143,12 +134,6 @@ template <class T>
 void Subscription<T>::update()
 {
 	SubscriptionBase::update((void *)(&_data));
-}
-
-template <class T>
-bool Subscription<T>::check_updated()
-{
-	return SubscriptionBase::updated();
 }
 
 template <class T>
@@ -162,10 +147,10 @@ template class __EXPORT Subscription<sensor_combined_s>;
 template class __EXPORT Subscription<hil_sensor_s>;
 template class __EXPORT Subscription<vehicle_attitude_s>;
 template class __EXPORT Subscription<vehicle_global_position_s>;
+template class __EXPORT Subscription<encoders_s>;
 template class __EXPORT Subscription<position_setpoint_triplet_s>;
 template class __EXPORT Subscription<vehicle_status_s>;
 template class __EXPORT Subscription<manual_control_setpoint_s>;
-template class __EXPORT Subscription<mavlink_log_s>;
 template class __EXPORT Subscription<vehicle_local_position_setpoint_s>;
 template class __EXPORT Subscription<vehicle_local_position_s>;
 template class __EXPORT Subscription<vehicle_attitude_setpoint_s>;
@@ -179,7 +164,5 @@ template class __EXPORT Subscription<optical_flow_s>;
 template class __EXPORT Subscription<distance_sensor_s>;
 template class __EXPORT Subscription<att_pos_mocap_s>;
 template class __EXPORT Subscription<vision_position_estimate_s>;
-template class __EXPORT Subscription<control_state_s>;
-template class __EXPORT Subscription<vehicle_land_detected_s>;
 
 } // namespace uORB

@@ -11,7 +11,7 @@
 #	notice, this list of conditions and the following disclaimer in
 #	the documentation and/or other materials provided with the
 #	distribution.
-# 3. Neither the name ATLFlight nor the names of its contributors may be
+# 3. Neither the name PX4 nor the names of its contributors may be
 #	used to endorse or promote products derived from this software
 #	without specific prior written permission.
 #
@@ -136,6 +136,10 @@ set(CMAKE_C_CREATE_SHARED_LIBRARY
 set(CMAKE_CXX_CREATE_SHARED_LIBRARY
 	"${HEXAGON_LINK} ${HEXAGON_START_LINK_FLAGS} --start-group --whole-archive <OBJECTS> <LINK_LIBRARIES> --no-whole-archive ${TOOLSLIB}/libstdc++.a --end-group ${HEXAGON_END_LINK_FLAGS}")
 
+list2string(HEXAGON_INCLUDE_DIRS
+	-I${CMAKE_SOURCE_DIR}/external/dspal/include
+	)
+
 set(DYNAMIC_LIBS -Wl,${TOOLSLIB}/libstdc++.a)
 
 #set(MAXOPTIMIZATION -O0)
@@ -148,13 +152,11 @@ set(ARCHCPUFLAGS
 	)
 
 add_definitions(
-	-D __QURT
-	-D _PID_T
-	-D _UID_T
-	-D _TIMER_T
-	-D _HAS_C9X
-	-D restrict=__restrict__
-	-D noreturn_function=
+	-D__QURT
+	-D_PID_T -D_UID_T -D_TIMER_T
+	-D_HAS_C9X
+	-Drestrict=
+	-Dnoreturn_function=
 	)
 
 # optimisation flags

@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include "df_testapp.h"
 
-extern int doTest(void);
+extern int do_test(void);
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,5 +61,5 @@ int32 df_testapp_do_test()
 {
 	LOG_MSG("Starting df_testapp");
 
-	return doTest();
+	return do_test();
 }

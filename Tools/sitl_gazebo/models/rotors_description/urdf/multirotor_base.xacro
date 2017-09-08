@@ -63,22 +63,10 @@
         <rotorVelocitySlowdownSim>${rotor_velocity_slowdown_sim}</rotorVelocitySlowdownSim>
       </plugin>
     </gazebo>
+
     <gazebo reference="base_link">
       <material>Gazebo/${color}</material>
-      <collision name='base_link_inertia_collision'>
-        <surface>
-          <contact>
-            <ode>
-              <min_depth>0.001</min_depth>
-              <max_vel>0.0</max_vel>
-            </ode>
-          </contact>
-          <friction>
-            <ode/>
-          </friction>
-        </surface>
-      </collision>
-   </gazebo>
+    </gazebo>
   </xacro:macro>
 
   <!-- Rotor joint and link -->
@@ -127,11 +115,11 @@
         <maxRotVelocity>${max_rot_velocity}</maxRotVelocity>
         <motorConstant>${motor_constant}</motorConstant>
         <momentConstant>${moment_constant}</momentConstant>
-        <commandSubTopic>/gazebo/command/motor_speed</commandSubTopic>
+        <commandSubTopic>gazebo/command/motor_speed</commandSubTopic>
         <motorNumber>${motor_number}</motorNumber>
         <rotorDragCoefficient>${rotor_drag_coefficient}</rotorDragCoefficient>
         <rollingMomentCoefficient>${rolling_moment_coefficient}</rollingMomentCoefficient>
-        <motorSpeedPubTopic>/motor_speed/${motor_number}</motorSpeedPubTopic>
+        <motorSpeedPubTopic>motor_speed/${motor_number}</motorSpeedPubTopic>
         <rotorVelocitySlowdownSim>${rotor_velocity_slowdown_sim}</rotorVelocitySlowdownSim>
       </plugin>
     </gazebo>

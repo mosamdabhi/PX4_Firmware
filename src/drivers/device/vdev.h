@@ -178,8 +178,6 @@ protected:
 	 * Each driver instance has its own lock/semaphore.
 	 *
 	 * Note that we must loop as the wait may be interrupted by a signal.
-	 *
-	 * Careful: lock() calls cannot be nested!
 	 */
 	void		lock()
 	{
@@ -196,9 +194,9 @@ protected:
 		px4_sem_post(&_lock);
 	}
 
-	px4_sem_t		_lock; /**< lock to protect access to all class members (also for derived classes) */
-
 private:
+	px4_sem_t		_lock;
+
 	/** disable copy construction for this and all subclasses */
 	Device(const Device &);
 
@@ -350,8 +348,6 @@ protected:
 	 *
 	 * The default implementation returns no events.
 	 *
-	 * Lock must already be held when calling this.
-	 *
 	 * @param filep		The file that's interested.
 	 * @return		The current set of poll events.
 	 */
@@ -369,8 +365,6 @@ protected:
 
 	/**
 	 * Internal implementation of poll_notify.
-	 *
-	 * Lock must already be held when calling this.
 	 *
 	 * @param fds		A poll waiter to notify.
 	 * @param events	The event(s) to send to the waiter.

@@ -12,6 +12,9 @@
 #include "ParameterUtils.h"
 #include "L1PositionObserver.h"
 
+#include "epc_matrixmath.h"
+#include "epc.h"
+
 class MocapPositionController
 {
 public:
@@ -51,32 +54,28 @@ public:
     bool cmd_updated = false;
     bool updated;
 
-    /* orb_check signifying: check to see whether the topic has updated since the last time we read it */
     orb_check(local_position_sub, &updated);
     if (updated)
-    {  
-      //printf("updated local pos\n");   
-      struct vehicle_local_position_s local_position; // Making a structure and ready to keep the info inside 'local_position'
-      orb_copy(ORB_ID(vehicle_local_position), local_position_sub, &local_position); // Copying the contents of ORB_ID: 'vehicle_local_position' using handle 'local_position_sub' inside 'local_position'
-      localPositionMessageCallback(local_position);  // Got the local_position setted through this. Look at the function declaration below for more clear understanding
+    {
+      struct vehicle_local_position_s local_position;
+      orb_copy(ORB_ID(vehicle_local_position), local_position_sub, &local_position);
+      localPositionMessageCallback(local_position);
     }
 
-    orb_check(mocap_position_cmd_sub, &updated); // mocap_position_cmd_sub is a handle of original topic and &updated would be using that value from here on
+    orb_check(mocap_position_cmd_sub, &updated);
     if (updated)
     {
-      //printf("pos_cmd is received\n");
       struct mocap_position_command_s cmd_in;
-      orb_copy(ORB_ID(mocap_position_command), mocap_position_cmd_sub, &cmd_in); // Means now cmd_in.('anything here inside original msg file'). Now cmd_in. can access the contents inside the msg file now
+      orb_copy(ORB_ID(mocap_position_command), mocap_position_cmd_sub, &cmd_in);
       cmd_updated = mocapPositionCommandMessageCallback(cmd_in);
     }
 
     orb_check(mocap_position_cmd_gains_sub, &updated);
     if (updated)
     {
-      //printf("mocap_position_command_gains is received\n");
       struct mocap_position_command_gains_s cmd_in;
       orb_copy(ORB_ID(mocap_position_command_gains), mocap_position_cmd_gains_sub, &cmd_in);
-      mocapPositionCommandGainsMessageCallback(cmd_in); // Fill and retrieve the contents/values of mocap_position_command_gains
+      mocapPositionCommandGainsMessageCallback(cmd_in);
     }
 
     hrt_abstime tnow = hrt_absolute_time();
@@ -84,49 +83,43 @@ public:
     if (cmd_updated)
       cmd_time = tnow;
 
-
     if (tnow - cmd_time > cmd_ttl_us)
       return false;
 
-    //printf("until here??\n");
     return updatePositionController();
   }
 
   void finalize()
   {
-    closeSubscriptions(); // Used in the main loop at the end disabling all controllers
+    closeSubscriptions();
   }
 
-  void setControlState(const control_state_s& ctrl_state_) // making a structure out of control_state and using it in ctrl_state_
+  void setControlState(const control_state_s& ctrl_state_)
   {
-    //printf("inside control state\n");
-    memcpy(&ctrl_state, &ctrl_state_, sizeof(ctrl_state_)); // & copying the contents of newly created ctrl_state_ inside ctrl_state
-    ctrl_state_set = true; // Making an integral condition true of: That the control_state is set to true now
+    memcpy(&ctrl_state, &ctrl_state_, sizeof(ctrl_state_));
+    ctrl_state_set = true;
   }
 
-  void setCurrentRPMCommand(const MotorManager::rpm_cmd_t& in) // Called from main loop
+  void setCurrentRPMCommand(const MotorManager::rpm_cmd_t& in)
   {
     for (unsigned int i = 0; i < 4; i++)
       current_rpm_cmd(i) = in.motor[i];
-    printf("Got rpm cmds\n");
-
   }
 
-  void getCascadedAttitudeCommand(cascaded_attitude_command_t& out) // Called from main loop. Using the value of 'att_cmd' generated in this code
+  void getCascadedAttitudeCommand(cascaded_attitude_command_t& out)
   {
     out = att_cmd;
-    //printf("got cascaded attitude commands\n");
   }
 
-private: // Private as all these handles and objects are used inclusively by this code unlike Public where main code was able to use/access them
-  void closeSubscriptions() // closing all ORB_ID Subscriptions using their respective handles
+private:
+  void closeSubscriptions()
   {
     close(mocap_position_cmd_sub);
     close(mocap_position_cmd_gains_sub);
     close(local_position_sub);
   }
 
-  bool loadParameters() // Loading internal Parameters used by MocapPositionController code. We can include our EPC internal params here later
+  bool loadParameters()
   {
     cmd_ttl_us =
       static_cast<hrt_abstime>(parameter_utils::getFloatParam("MCC_CMD_TTL")*1.0e6f);
@@ -136,45 +129,38 @@ private: // Private as all these handles and objects are used inclusively by thi
     return true;
   }
 
-  bool registerCallbacks() // Literally, registering Callbacks, means, we are confirming here whether the handle created by us is actually subscribing and filling itself with data or not
+  bool registerCallbacks()
   {
-    //puts("GH");
-    mocap_position_cmd_sub = orb_subscribe(ORB_ID(mocap_position_command));  // mocap_position_cmd_sub is a handle. Original ID from which we are fetching data is: 'mocap_position_command'
-    if (mocap_position_cmd_sub < 0) // Checking if handle got data or not
+    mocap_position_cmd_sub = orb_subscribe(ORB_ID(mocap_position_command));
+    if (mocap_position_cmd_sub < 0)
     {
       puts("[MPC] mocap_position_cmd_sub failed");
       return false;
     }
-    
-    mocap_position_cmd_gains_sub = orb_subscribe(ORB_ID(mocap_position_command_gains)); // Similar cycle as done for mocap_position_cmd would be done for mocap_position_cmd_gains
+
+    mocap_position_cmd_gains_sub = orb_subscribe(ORB_ID(mocap_position_command_gains));
     if (mocap_position_cmd_gains_sub < 0)
     {
       puts("[MPC] mocap_position_cmd_gains_sub failed");
       return false;
     }
 
-    // Main ID: vehicle_local_position
-    // Topic handle: local_position_sub
-
-
-    local_position_sub = orb_subscribe(ORB_ID(vehicle_local_position)); // Creating topic handle for vehicle_local_position
+    local_position_sub = orb_subscribe(ORB_ID(vehicle_local_position));
     if (local_position_sub < 0)
     {
       puts("[MPC] local_position_sub failed");
       return false;
     }
 
-    return true; // This final return true signifies that all registerCallbacks are successfull
+    return true;
   }
 
-  bool updatePositionController() // Main Controller loop | And everything would be generated used here, which would be used for future references
+  bool updatePositionController()
   {
-
-    if (!ctrl_state_set || !local_pos_set) // Confirming that control_state is set and local_position is set
+    if (!ctrl_state_set || !local_pos_set)
       return false;
 
-    //printf("first test pass\n");
-    if (!cmd.cmd_set || !cmd_gains.gains_set) // Confirming inputs from commanded setpoints from mocap and cmd_gains are also set before proceeding further insdie the loop
+    if (!cmd.cmd_set || !cmd_gains.gains_set)
     {
 #if 0
       static unsigned int counter = 0;
@@ -188,37 +174,92 @@ private: // Private as all these handles and objects are used inclusively by thi
       return false;
     }
 
-    //printf("second test pass\n");
-
-    // Now, until here, we have confirmed that we have local position as well as commanded position setpoints. Read motion_manager architecture accordingly to set these things and check accordingly
     math::Vector<3> pos(local_pos.x, local_pos.y, local_pos.z);
     math::Vector<3> vel(local_pos.vx, local_pos.vy, local_pos.vz);
     math::Quaternion q(ctrl_state.q);
     math::Matrix<3, 3> R = q.to_dcm();
     math::Vector<3> Rde3 = R*e3;
 
-    math::Vector<3> e_pos = pos - cmd.pos;
-    math::Vector<3> e_vel = vel - cmd.vel;
-    printf("commanded pos: %3.4f\n", double(cmd.pos(0)));
-    printf("local pos: %3.4f\n", double(pos(0)));
+    math::Vector<3> e_pos = cmd.pos - pos;
+    math::Vector<3> e_vel = cmd.vel - vel;
 
-    //printf("e_vel & e_pos calculated\n");
+    
+    #if 0
+    printf("got cmd_gains kp_x: %3.4f kp_y: %3.4f kp_z: %3.4f mass: %3.4f\n",
+          (double) cmd_gains.kp(0),
+          (double) cmd_gains.kp(1),
+          (double) cmd_gains.kp(2),
+          (double) mass);
+    //#endif
+    //#if 
+    printf("got cmd_gains kd_x: %3.4f kd_y: %3.4f kd_z: %3.4f\n",
+          (double) cmd_gains.kd(0),
+          (double) cmd_gains.kd(1),
+          (double) cmd_gains.kd(2));
+    #endif
+    
 
     // World force in NED frame
-    math::Vector<3> fd_w =
-      (-cmd_gains.kp.emult(e_pos) - cmd_gains.kd.emult(e_vel) + cmd.acc - gravity)*mass;
+    math::Vector<3> fd_w;
+
+    
+
+  //#if 0  
+    static epc epc_obj;
+  #if 0
+   struct timespec start, stop;
+   double accum;
+
+   if( clock_gettime( CLOCK_REALTIME, &start) == -1 ) {
+     perror( "clock gettime" );
+     exit( EXIT_FAILURE );
+   }    
+  #endif
+
+    
+    if (!epc_obj.epc_logic(fd_w, pos, vel, cmd.pos, cmd.vel, cmd.acc, mass, gravity(2)))
+    {
+
+        // World force in NED frame
+        fd_w =
+          (cmd_gains.kp.emult(e_pos) + cmd_gains.kd.emult(e_vel) + cmd.acc - gravity)*mass;              
+
+        //printf("epc_logic is false\n");
+    }
+  #if 0
+  if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) {
+     perror( "clock gettime" );
+     exit( EXIT_FAILURE );
+   }
+
+   accum = ( stop.tv_sec - start.tv_sec ) 
+         + ( stop.tv_nsec - start.tv_nsec );
+
+   printf( "Time elapsed EPC: %3.4f\n", double(accum));
+  #endif
+
+            
+             
+
+    #if 0
+     printf("got force in       x: %3.4f y: %3.4f z: %3.4f\n",
+          (double) fd_w(0),
+          (double) fd_w(1),
+          (double) fd_w(2)); 
+    #endif      
+
+    //printf("gravity is: %3.7f\n", double(mass));
 
     // L1 Position Observe (provides world force error in NED frame)
     math::Vector<3> l1_fw = l1_pos_observer.update(R, vel, current_rpm_cmd);
 
-    //math::Vector<3> l1_fw = 0;
     // Total force
     fd_w -= l1_fw;
 
     // thrust magnitude (in NED)
     att_cmd.thrust = fd_w(0)*Rde3(0) + fd_w(1)*Rde3(1) + fd_w(2)*Rde3(2);
 
-    //printf("thrust magnitude calculation accomplished\n");
+    //printf("thrust values: %3.5f\n", double(att_cmd.thrust));
 
 #if 0
     static unsigned int debug_counter1 = 0;
@@ -274,7 +315,7 @@ private: // Private as all these handles and objects are used inclusively by thi
       debug_counter = 0;
     }
 #endif
-    //printf("update position over\n");
+
     return true;
   }
 
@@ -431,7 +472,7 @@ private: // Private as all these handles and objects are used inclusively by thi
     cmd.jerk.set(in.jerk);
     cmd.heading.set(in.heading);
     cmd.cmd_set = true;
-    
+
     return true;
   }
 
@@ -459,8 +500,8 @@ private: // Private as all these handles and objects are used inclusively by thi
 
   void localPositionMessageCallback(const vehicle_local_position_s& local_pos_)
   {
-    memcpy(&local_pos, &local_pos_, sizeof(local_pos_));  // Copied the contents of local_pos_ inside local_pos which we would be using later on, for accessing all the local position values inside the message
-    local_pos_set = true;  // Self explanatory
+    memcpy(&local_pos, &local_pos_, sizeof(local_pos_));
+    local_pos_set = true;
 
 #if 0
     static unsigned int counter = 0;

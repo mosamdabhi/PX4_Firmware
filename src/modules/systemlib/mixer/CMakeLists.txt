@@ -53,4 +53,4 @@ px4_add_module(
 		platforms__common
 		mixer_gen
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :

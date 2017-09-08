@@ -49,10 +49,8 @@
  * The amount of time in seconds the system should loiter at current position before termination
  * Set to -1 to make the system skip loitering
  *
- * @unit s
+ * @unit seconds
  * @min -1.0
- * @decimal 1
- * @increment 0.1
  * @group Radio Signal Loss
  */
 PARAM_DEFINE_FLOAT(NAV_RCL_LT, 120.0f);

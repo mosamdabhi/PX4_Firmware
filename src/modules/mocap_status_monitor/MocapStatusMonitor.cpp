@@ -111,24 +111,20 @@ bool MocapStatusMonitor::openDevices()
     return false;
   }
 
-  // Board type v4/pixracer uses a different device path
-  if (board_type != 4)
+  leds = px4_open(RGBLED0_DEVICE_PATH, 0);
+
+  if (leds < 0)
   {
-    leds = px4_open(RGBLED0_DEVICE_PATH, 0);
-
-    if (leds < 0)
-    {
-      puts("[MSM] RGBLED: open fail");
-      return false;
-    }
-
-    if (ioctl(leds, RGBLED_SET_MODE, RGBLED_MODE_ON))
-    {
-      puts("[MSM] RGBLED: ioctl fail");
-      return false;
-    }
-    ioctl(leds, RGBLED_SET_COLOR, RGBLED_COLOR_OFF);
+    puts("[MSM] RGBLED: open fail");
+    return false;
   }
+
+  if (ioctl(leds, RGBLED_SET_MODE, RGBLED_MODE_ON))
+  {
+    puts("[MSM] RGBLED: ioctl fail");
+    return false;
+  }
+  ioctl(leds, RGBLED_SET_COLOR, RGBLED_COLOR_OFF);
 
   return true;
 }
@@ -189,7 +185,6 @@ bool MocapStatusMonitor::loadParameters()
   battery_ignore = pu::getFloatParam("MSM_IGN_THRESH");
   battery_low = pu::getFloatParam("MSM_LOW_THRESH");
   battery_critical = pu::getFloatParam("MSM_CRIT_THRESH");
-  board_type = pu::getIntParam("MSM_BOARD_VER");
 
   return true;
 }

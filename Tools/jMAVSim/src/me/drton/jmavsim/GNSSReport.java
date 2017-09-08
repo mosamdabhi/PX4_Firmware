@@ -9,8 +9,8 @@ import javax.vecmath.Vector3d;
  */
 public class GNSSReport {
     public LatLonAlt position;
-    public float eph;
-    public float epv;
+    public double eph;
+    public double epv;
     public Vector3d velocity;
     public int fix;     // 0 = no fix, 1 = time only, 2 = 2D fix, 3 = 3D fix
     public long time;   // UTC time in [us]

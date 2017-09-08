@@ -44,11 +44,8 @@
  *
  * Reduce if the system is too twitchy, increase if the response is too slow and sluggish.
  *
- * @unit s
  * @min 0.15
  * @max 0.25
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLL_TC, 0.2f);
@@ -58,11 +55,8 @@ PARAM_DEFINE_FLOAT(MC_ROLL_TC, 0.2f);
  *
  * Reduce if the system is too twitchy, increase if the response is too slow and sluggish.
  *
- * @unit s
  * @min 0.15
  * @max 0.25
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCH_TC, 0.2f);
@@ -73,9 +67,6 @@ PARAM_DEFINE_FLOAT(MC_PITCH_TC, 0.2f);
  * Roll proportional gain, i.e. desired angular speed in rad/s for error 1 rad.
  *
  * @min 0.0
- * @max 8
- * @decimal 2
- * @increment 0.1
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLL_P, 6.5f);
@@ -86,9 +77,6 @@ PARAM_DEFINE_FLOAT(MC_ROLL_P, 6.5f);
  * Roll rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
  * @min 0.0
- * @max 0.5
- * @decimal 3
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_P, 0.15f);
@@ -99,8 +87,6 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_P, 0.15f);
  * Roll rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
  * @min 0.0
- * @decimal 3
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_I, 0.05f);
@@ -111,9 +97,6 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_I, 0.05f);
  * Roll rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
  * @min 0.0
- * @max 0.01
- * @decimal 4
- * @increment 0.0005
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_D, 0.003f);
@@ -124,7 +107,6 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_D, 0.003f);
  * Improves tracking performance.
  *
  * @min 0.0
- * @decimal 4
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_FF, 0.0f);
@@ -136,9 +118,6 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_FF, 0.0f);
  *
  * @unit 1/s
  * @min 0.0
- * @max 10
- * @decimal 2
- * @increment 0.0005
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCH_P, 6.5f);
@@ -149,9 +128,6 @@ PARAM_DEFINE_FLOAT(MC_PITCH_P, 6.5f);
  * Pitch rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
  * @min 0.0
- * @max 0.6
- * @decimal 3
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_P, 0.15f);
@@ -162,8 +138,6 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_P, 0.15f);
  * Pitch rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
  * @min 0.0
- * @decimal 3
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_I, 0.05f);
@@ -174,8 +148,6 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_I, 0.05f);
  * Pitch rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
  * @min 0.0
- * @decimal 4
- * @increment 0.0005
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_D, 0.003f);
@@ -186,7 +158,6 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_D, 0.003f);
  * Improves tracking performance.
  *
  * @min 0.0
- * @decimal 4
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_FF, 0.0f);
@@ -198,9 +169,6 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_FF, 0.0f);
  *
  * @unit 1/s
  * @min 0.0
- * @max 5
- * @decimal 2
- * @increment 0.1
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAW_P, 2.8f);
@@ -211,9 +179,6 @@ PARAM_DEFINE_FLOAT(MC_YAW_P, 2.8f);
  * Yaw rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
  * @min 0.0
- * @max 0.6
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAWRATE_P, 0.2f);
@@ -224,8 +189,6 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_P, 0.2f);
  * Yaw rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAWRATE_I, 0.1f);
@@ -236,8 +199,6 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_I, 0.1f);
  * Yaw rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAWRATE_D, 0.0f);
@@ -248,8 +209,6 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_D, 0.0f);
  * Improves tracking performance.
  *
  * @min 0.0
- * @decimal 4
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAWRATE_FF, 0.0f);
@@ -261,8 +220,6 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_FF, 0.0f);
  *
  * @min 0.0
  * @max 1.0
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAW_FF, 0.5f);
@@ -275,8 +232,6 @@ PARAM_DEFINE_FLOAT(MC_YAW_FF, 0.5f);
  * @unit deg/s
  * @min 0.0
  * @max 360.0
- * @decimal 1
- * @increment 5
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_MAX, 220.0f);
@@ -289,28 +244,12 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_MAX, 220.0f);
  * @unit deg/s
  * @min 0.0
  * @max 360.0
- * @decimal 1
- * @increment 5
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_MAX, 220.0f);
 
 /**
  * Max yaw rate
- *
- * A value of significantly over 120 degrees per second can already lead to mixer saturation.
- *
- * @unit deg/s
- * @min 0.0
- * @max 360.0
- * @decimal 1
- * @increment 5
- * @group Multicopter Attitude Control
- */
-PARAM_DEFINE_FLOAT(MC_YAWRATE_MAX, 200.0f);
-
-/**
- * Max yaw rate in auto mode
  *
  * Limit for yaw rate, has effect for large rotations in autonomous mode,
  * to avoid large control output and mixer saturation. A value of significantly
@@ -319,21 +258,17 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_MAX, 200.0f);
  *
  * @unit deg/s
  * @min 0.0
- * @max 120.0
- * @decimal 1
- * @increment 5
+ * @max 360.0
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_YAWRAUTO_MAX, 45.0f);
+PARAM_DEFINE_FLOAT(MC_YAWRATE_MAX, 45.0f);
 
 /**
  * Max acro roll rate
  *
  * @unit deg/s
  * @min 0.0
- * @max 1000.0
- * @decimal 1
- * @increment 5
+ * @max 360.0
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ACRO_R_MAX, 360.0f);
@@ -343,9 +278,7 @@ PARAM_DEFINE_FLOAT(MC_ACRO_R_MAX, 360.0f);
  *
  * @unit deg/s
  * @min 0.0
- * @max 1000.0
- * @decimal 1
- * @increment 5
+ * @max 360.0
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ACRO_P_MAX, 360.0f);
@@ -355,9 +288,6 @@ PARAM_DEFINE_FLOAT(MC_ACRO_P_MAX, 360.0f);
  *
  * @unit deg/s
  * @min 0.0
- * @max 1000.0
- * @decimal 1
- * @increment 5
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_ACRO_Y_MAX, 360.0f);
@@ -368,10 +298,282 @@ PARAM_DEFINE_FLOAT(MC_ACRO_Y_MAX, 360.0f);
  * Manual input needed in order to override attitude control rate setpoints
  * and instead pass manual stick inputs as rate setpoints
  *
+ * @unit
  * @min 0.0
  * @max 1.0
- * @decimal 2
- * @increment 0.01
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_RATT_TH, 1.0f);
+ PARAM_DEFINE_FLOAT(MC_RATT_TH, 1.0f);
+
+/**
+* Parameter to enable angular velocity L1 adaptive control
+*
+* @min 0
+* @max 1
+* @group Multicoptor Attitude Control
+*/
+PARAM_DEFINE_INT32(MC_ENABLE_L1A, 0);
+
+/**
+* Parameter to enable disturbance torques to be cancelled out by attitude rate controller
+*
+* @min 0
+* @max 1
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_INT32(L1A_ACTIVE, 0);
+
+/**
+* Parameter to enable publishing angular velocity L1 adaptive control debug information
+*
+* @min 0
+* @max 1
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_INT32(L1A_ENABLE_DEBUG, 0);
+
+/**
+* XX component of body frame inertia matrix
+*
+* @unit N m^2
+* @min 0.0
+* @max 10.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_INERTIA_XX, 0.0f);
+
+/**
+* XY component of body frame inertia matrix
+*
+* @unit N m^2
+* @min 0.0
+* @max 10.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_INERTIA_XY, 0.0f);
+
+/**
+* XZ component of body frame inertia matrix
+*
+* @unit N m^2
+* @min 0.0
+* @max 10.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_INERTIA_XZ, 0.0f);
+
+/**
+* YY component of body frame inertia matrix
+*
+* @unit N m^2
+* @min 0.0
+* @max 10.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_INERTIA_YY, 0.0f);
+
+/**
+* YZ component of body frame inertia matrix
+*
+* @unit N m^2
+* @min 0.0
+* @max 10.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_INERTIA_YZ, 0.0f);
+
+/**
+* ZZ component of body frame inertia matrix
+*
+* @unit N m^2
+* @min 0.0
+* @max 10.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_INERTIA_ZZ, 0.0f);
+
+/**
+* Thrust coefficient, ratio of force in newtons over RPM^2
+*
+* @unit N
+* @min 0.0
+* @max 9999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_CT, 0.0f);
+
+/**
+* Motor constant
+*
+* @unit ??
+* @min 0.0
+* @max 9999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_MOTOR_CONSTANT, 0.0f);
+
+/**
+* Distance from body frame origin to any rotor axis in body xy plane
+*
+* @unit m
+* @min 0.0
+* @max 9999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_ARM_LENGTH, 0.0f);
+
+/**
+* Ratio of yaw torque to thrust generated by a single rotor
+*
+* @unit m
+* @min 0.0
+* @max 9999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_MOMENT_SCALE, 0.0f);
+
+/**
+* Absolute value of acute angle between any motor and the body x axis
+*
+* @unit rad
+* @min 0.0
+* @max 1.5708
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_MOTOR_SPREAD_ANGLE, 0.0f);
+
+/**
+* RPM that corresponds to minimum PWM at some arbitrary voltage
+*
+* @unit
+* @min 0.0
+* @max 99999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_RPM_MIN, 0.0f);
+
+/**
+* RPM that corresponds to maximum PWM at some arbitrary voltage
+*
+* @unit
+* @min 0.0
+* @max 99999.9
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_RPM_MAX, 0.0f);
+
+/**
+* Maximum battery voltage
+*
+* @unit Volts
+* @min 0.0
+* @max 100.0
+* @group Physics
+*/
+PARAM_DEFINE_FLOAT(PHY_VOLTAGE_MAX, 12.6f);
+
+/**
+* Bandwidth of low pass filter for x component of torque disturbance estimate
+*
+* @unit ??
+* @min 0.0
+* @max 1000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_BANDWIDTH_X, 0.0f);
+
+/**
+* Bandwidth of low pass filter for y component of torque disturbance estimate
+*
+* @unit ??
+* @min 0.0
+* @max 1000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_BANDWIDTH_Y, 0.0f);
+
+/**
+* Bandwidth of low pass filter for z component of torque disturbance estimate
+*
+* @unit ??
+* @min 0.0
+* @max 1000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_BANDWIDTH_Z, 0.0f);
+
+/**
+* Gain on state predictor in X
+*
+* @min 0.0
+* @max 1000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_OBSERVER_GAIN_X, 400.0f);
+
+/**
+* Gain on state predictor in Y
+*
+* @min 0.0
+* @max 1000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_OBSERVER_GAIN_Y, 400.0f);
+
+/**
+* Gain on state predictor in Z
+*
+* @unit ??
+* @min 0.0
+* @max 1000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_OBSERVER_GAIN_Z, 400.0f);
+
+/**
+* Adaptation gain
+*
+* @min 0.0
+* @max 10000.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_ADAPTATION_GAIN, 5000.0f);
+
+/**
+* Initial torque disturbance estimate in X
+*
+* @unit N m
+* @min 0.0
+* @max 100.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_INIT_DISTX, 0.0f);
+
+/**
+* Initial torque disturbance estimate in Y
+*
+* @unit N m
+* @min 0.0
+* @max 100.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_INIT_DISTY, 0.0f);
+
+/**
+* Initial torque disturbance estimate in Z
+*
+* @unit N m
+* @min 0.0
+* @max 100.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_INIT_DISTZ, 0.0f);
+
+/**
+* Threshold on normalized thrust before which L1 is initialized
+*
+* @min 0.0
+* @max 1.0
+* @group Angular Velocity L1 Adaptive Control
+*/
+PARAM_DEFINE_FLOAT(L1A_ENGAGE_LEVEL, 0.3f);

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -83,16 +83,33 @@ MultirotorMixer::MultirotorMixer(ControlCallback control_cb,
 				 float roll_scale,
 				 float pitch_scale,
 				 float yaw_scale,
-				 float idle_speed) :
+				 float idle_speed,
+         float pwm_min,
+         float pwm_max,
+         float rpm_max,
+         float voltage_max,
+         float cT,
+         float rpm_per_pwm,
+         float rpm_per_volt,
+         float rpm_at_zero_pwm_and_volts) :
 	Mixer(control_cb, cb_handle),
 	_roll_scale(roll_scale),
 	_pitch_scale(pitch_scale),
 	_yaw_scale(yaw_scale),
 	_idle_speed(-1.0f + idle_speed * 2.0f),	/* shift to output range here to avoid runtime calculation */
+  _pwm_min(pwm_min),
+  _pwm_max(pwm_max),
+  _rpm_max(rpm_max),
+  _cT(cT),
+  _voltage_max(voltage_max),
 	_limits_pub(),
 	_rotor_count(_config_rotor_count[(MultirotorGeometryUnderlyingType)geometry]),
 	_rotors(_config_index[(MultirotorGeometryUnderlyingType)geometry])
 {
+  _f_max = _cT * _rpm_max * _rpm_max;
+  _rpm_coeff = 1.0f / rpm_per_pwm;
+  _voltage_coeff = -rpm_per_volt / rpm_per_pwm;
+  _affine_coeff = -rpm_at_zero_pwm_and_volts / rpm_per_pwm;
 }
 
 MultirotorMixer::~MultirotorMixer()
@@ -104,8 +121,8 @@ MultirotorMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handl
 {
 	MultirotorGeometry geometry;
 	char geomname[8];
-	int s[4];
-	int used;
+	int s[14];
+  int used;
 
 	/* enforce that the mixer ends with space or a new line */
 	for (int i = buflen - 1; i >= 0; i--) {
@@ -125,7 +142,22 @@ MultirotorMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handl
 
 	}
 
-	if (sscanf(buf, "R: %s %d %d %d %d%n", geomname, &s[0], &s[1], &s[2], &s[3], &used) != 5) {
+  /* s[0] = 10000 * roll_scale
+   * s[1] = 10000 * pitch_scale
+   * s[2] = 10000 * yaw_scale
+   * s[3] = 10000 * idle_speed
+   * s[4] = pwm_min
+   * s[5] = pwm_max
+   * s[6] = rpm_min
+   * s[7] = rpm_max
+   * s[8] = 1000 * (cT mantissa)
+   * s[9] = cT exponent
+   * s[10] = 1000 * voltage max
+   * s[11] = 1000 * rpm_per_pwm
+   * s[12] = 1000 * rpm_per_voltage
+   * s[13] = 1000 * rpm_at_zero_pwm_and_voltage
+   */
+	if (sscanf(buf, "R: %s %d %d %d %d %d %d %d %d %d %d %d %d %d %d%n", geomname, &s[0], &s[1], &s[2], &s[3], &s[4], &s[5], &s[6], &s[7], &s[8], &s[9], &s[10], &s[11], &s[12], &s[13], &used) != 15) {
 		debug("multirotor parse failed on '%s'", buf);
 		return nullptr;
 	}
@@ -159,6 +191,9 @@ MultirotorMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handl
 	} else if (!strcmp(geomname, "4w")) {
 		geometry = MultirotorGeometry::QUAD_WIDE;
 
+	} else if (!strcmp(geomname, "4da")) {
+		geometry = MultirotorGeometry::QUAD_DANAUS;
+
 	} else if (!strcmp(geomname, "4dc")) {
 		geometry = MultirotorGeometry::QUAD_DEADCAT;
 
@@ -180,12 +215,6 @@ MultirotorMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handl
 	} else if (!strcmp(geomname, "8c")) {
 		geometry = MultirotorGeometry::OCTA_COX;
 
-#if 0
-
-	} else if (!strcmp(geomname, "8cw")) {
-		geometry = MultirotorGeometry::OCTA_COX_WIDE;
-#endif
-
 	} else if (!strcmp(geomname, "2-")) {
 		geometry = MultirotorGeometry::TWIN_ENGINE;
 
@@ -206,7 +235,15 @@ MultirotorMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handl
 		       s[0] / 10000.0f,
 		       s[1] / 10000.0f,
 		       s[2] / 10000.0f,
-		       s[3] / 10000.0f);
+		       s[3] / 10000.0f,
+           s[4] / 1.0f,
+           s[5] / 1.0f,
+           s[7] / 1.0f,
+           s[10] / 1000.0f,
+           s[8] / 1000.0f * powf(10.0f, s[9] / 1.0f),
+           s[11] / 1000.0f,
+           s[12] / 1000.0f,
+           s[13] / 1000.0f);
 }
 
 unsigned
@@ -227,8 +264,15 @@ MultirotorMixer::mix(float *outputs, unsigned space, uint16_t *status_reg)
 	float		pitch   = constrain(get_control(0, 1) * _pitch_scale, -1.0f, 1.0f);
 	float		yaw     = constrain(get_control(0, 2) * _yaw_scale, -1.0f, 1.0f);
 	float		thrust  = constrain(get_control(0, 3), 0.0f, 1.0f);
-	float		min_out = 1.0f;
+	float		min_out = 0.0f;
 	float		max_out = 0.0f;
+
+  // hack: normalized voltage is stuffed into the fifth element of actuator_controls array
+  float   voltage = _voltage_max*get_control(0, 4);
+
+  // enforce min voltage to prevent failsafe PWM (when RPM = 0, voltage = 0) from being higher than min PWM
+  if (voltage < 9.0f)
+    voltage = 9.0f;
 
 	// clean register for saturation status flags
 	if (status_reg != NULL) {
@@ -307,7 +351,7 @@ MultirotorMixer::mix(float *outputs, unsigned space, uint16_t *status_reg)
 		}
 	}
 
-	if (max_out > 1.0f) {
+	if (max_out > 0.0f) {
 		if (status_reg != NULL) {
 			(*status_reg) |= PX4IO_P_STATUS_MIXER_UPPER_LIMIT;
 		}
@@ -362,7 +406,21 @@ MultirotorMixer::mix(float *outputs, unsigned space, uint16_t *status_reg)
 			     yaw * _rotors[i].yaw_scale +
 			     thrust + boost;
 
-		outputs[i] = constrain(_idle_speed + (outputs[i] * (1.0f - _idle_speed)), _idle_speed, 1.0f);
+    /* Convert output force to newtons */
+    float fnewtons = _f_max * outputs[i];
+    fnewtons = (fnewtons > 0.0f) ? fnewtons : 0.0f;
+
+    /* compute RPMs */
+    float rpm = sqrtf(fnewtons / _cT);
+
+    /* convert to PWMs */
+    float pwm = _voltage_coeff * voltage + _rpm_coeff * rpm + _affine_coeff;
+
+    /* normalize to [-1,1] range */
+    float pwmout = 2.0f * (pwm - _pwm_min)/(_pwm_max - _pwm_min) - 1.0f;
+
+    /* Constrain to interval */
+    outputs[i] = constrain(pwmout, -1.0f, 1.0f);
 	}
 
 	return _rotor_count;
@@ -374,4 +432,3 @@ MultirotorMixer::groups_required(uint32_t &groups)
 	/* XXX for now, hardcoded to indexes 0-3 in control group zero */
 	groups |= (1 << 0);
 }
-

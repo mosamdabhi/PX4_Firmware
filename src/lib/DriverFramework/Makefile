@@ -1,16 +1,27 @@
-all: linux qurt rpi edison
+all: linux qurt
+
+.PHONY submodule:
+submodule:
+	git submodule init
+	git submodule update
 
 define df_cmake_generate
-mkdir -p build_$(1) && cd build_$(1) && cmake .. -DOS=$(2) -DCMAKE_TOOLCHAIN_FILE=$(3) -DDF_ENABLE_TESTS=1
+mkdir -p build_$(1) && cd build_$(1) && cmake .. -DDF_TARGET=$(1) -DCMAKE_TOOLCHAIN_FILE=$(2) -DDF_ENABLE_TESTS=1
 endef
 
-rpi linux bebop edison:
-	$(call df_cmake_generate,$@,posix,cmake/toolchains/Toolchain-$@.cmake)
+linux nuttx:
+	$(call df_cmake_generate,$@,cmake/toolchains/Toolchain-$@.cmake)
 	cd build_$@ && make
 
-qurt:
-	$(call df_cmake_generate,$@,$@,cmake/cmake_hexagon/toolchain/Toolchain-$@.cmake)
-	cd build_$@ && make
+external/dspal:
+	cd external && git clone https://github.com/ATLFlight/dspal
+
+dspal_sync: external/dspal submodule
+	cd external/dspal && git pull
+
+qurt: dspal_sync
+	$(call df_cmake_generate,qurt,cmake_hexagon/toolchain/Toolchain-qurt.cmake)
+	cd build_qurt && make
 
 run: linux
 	build_linux/test/df_testapp
@@ -20,11 +31,3 @@ helgrind: linux
 
 clean:
 	rm -rf build_*
-
-qurt_load: qurt
-	cd build_qurt && make df_imu_test-load
-
-fix-style:
-	@./dspal/tools/fix_code_style.sh -p ".git dspal build_qurt build_linux build_rpi build_edison"
-check-style:
-	@./dspal/tools/fix_code_style.sh -p ".git dspal build_qurt build_linux build_rpi build_edison" --check

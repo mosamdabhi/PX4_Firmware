@@ -1,4 +1,7 @@
+## jMAVSim ##
+
 [![Build Status](https://travis-ci.org/PX4/jMAVSim.svg?branch=master)](https://travis-ci.org/PX4/jMAVSim)
+
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/DrTon/jMAVSim?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Simple multirotor simulator with MAVLink protocol support
@@ -23,24 +26,6 @@ Install prerequisites via HomeBrew:
 brew install ant
 ```
 
-Create a standalone runnable JAR file with all libraries included, copy supporting resources, and use a shorter command to execute:
-
-```
-ant create_run_jar copy_res
-cd out/production
-java -Djava.ext.dirs= -jar jmavsim_run.jar [any jMAVSim options]
-```
-
-To create a complete package ready for distribution, build the `distro` target (this will create `out/production/jMAVSim-distrib.zip`):
-
-```
-ant distro
-```
-
-To delete everything in the build folder `ant clean-all`.
-
-#### Alternate build / run / distribute
-
 Compile:
 ```
 ant
@@ -60,7 +45,6 @@ On **Windows** use `;` instead of `:` in -cp:
 ```
 java -cp lib/*;out/production/jmavsim.jar me.drton.jmavsim.Simulator
 ```
-
 
 ### Troubleshooting ###
 

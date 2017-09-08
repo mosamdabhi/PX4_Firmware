@@ -1,30 +1,30 @@
 # DriverFramework
 
-Driver framework for POSIX based userspace drivers.
+Driver framework for POSIX based userspace drivers. 
 
 ## Overview
 
 The top level namespace is DriverFramework.
 
 The main classes are:
-* Framework: Used to start and stop the driver framework
-* DevMgr: Used to:
-    - Register and unregister device drivers
-    - get and release DevHandle objects
-* WorkMgr: Used by drivers to:
-    - schedule periodic tasks
-    - create and destroy WorkHandles
-* DevObj: The base class of all drivers
-    - periodic callback method `virtual void _measure()`
 
-The framework consists of one worker thread (class `HRTWorkQueue`) that
-periodically executes the method `virtual void DevObj::_measure()`, that is
-implemented by the corresponding device driver to update its data.
+	* Framework: Used to start and stop the driver framework
 
-The framework provides three intermediate driver classes as a base for new drivers:
-* VirtDevObj: Provides a base class for simulated drivers
-* I2CDevObj: Provides a base class for I2C drivers
-* SPIDevObj: Provides a base class for SPI drivers
+	* DevMgr: Used to:
+		- Register and unregister device drivers
+		- get and release DevHandle objects
+
+	* WorkMgr: Used by drivers to:
+		- schedule periodic tasks
+		- create and destroy WorkHandles
+ 
+	* DevObj: The base class of all drivers
+
+The framework provides two intermediate driver classes as a base for new drivers:
+
+	* VirtDevObj: Provides a base class for simulated drivers
+
+	* I2CDevObj: Provides a base class for I2C drivers
 
 ### Framework Initialization
 
@@ -41,13 +41,13 @@ If the exit condition is an async event and you need to block the calling thread
 ```
 DriverFramework::waitForShutdown();
 ```
-This will block until DriverFramework::shutdown() is called from another thread;
+This will block until DriverFramework::shutdown() is called from another thread; 
 
 
 ### Driver Initialization
 
 When the driver is initialized, it will register with the framework and provide an instance
-of the base class path.
+the base class path. 
 
 For instance, if the driver was created with:
 
@@ -60,28 +60,22 @@ public:
 	Gyro() :
 		I2CDevObj("Gyro", GYRO_BASE_PATH, 1000)
 	{}
-protected:
-	virtual void _measure();
 ...
 };
 
-...
 void run()
 {
 	DriverFramework::initialize();
 	Gyro myGyro();
 	myGyro.init(); // register the driver
 
-	...
-
 	DevHandle h;
-	DevMgr::getHandle("/dev/gyro0", h); // Starts the driver
+	DevMgr::getHandle("/dev/gyro0", h); // Starts the driver running
 
 	if (!h.isvalid()) {
 		printf("failed to get device handle\n");
 	}
 
-	h.read(...), h.write(...), ...
 	...
 
 	DevMgr::releaseHandle(h);
@@ -104,20 +98,14 @@ myGyro.init();
 DevMgr::getHandle("/dev/gyro0", h);
 ```
 
-DevHandle objects are used to access the driver via a device path from anywhere
-in the code after the driver was started. DevHandle objects cannot be copied.
+DevHandle objects cannot be copied.
 
 ### Starting and Stopping the Driver
 
-By default, the driver is initialized and started the first time a handle is
-opened to the device (if it is not running already). It keeps running when the
-last handle is released.
+By default, the driver is started the first time a handle is opened to the device,
+and stopped when the last handle is released.
 
-The above use case utilizes handles to communicate with the driver, but there is
-also a second use case. The use of DevHandle is optional and the driver can be
-explicitly started or stopped using start() or stop(). In this case there is
-typically a project-specific wrapper class that inherits from the driver and
-directly handles the data (e.g. by publishing a message).
+The driver can be explicitly started or stopped using start() or stop():
 
 ```
 myGyro.start();
@@ -132,7 +120,7 @@ The read, write and ioctl calls are wrapped and provided as calls via the DevHan
 The functions follow the POSIX sematics and the errno value can be accessed via getError().
 ```
 DevHandle h;
-DevMgr::getHandle("/dev/gyro0", h); // Starts the driver
+DevMgr::getHandle("/dev/gyro0", h); // Starts the driver running
 
 SomeDataStruct data[3];
 int ret = h.read(data, sizeof(data));
@@ -141,48 +129,5 @@ if (ret < 0) {
 }
 
 ```
+Errors can be checked by testing for errors after a
 
-### Testing
-
-To run the unit tests build it and run the test app:
-
-
-#### Testing on the PC
-```
-make linux
-build_linux/test/df_testapp
-```
-
-#### Testing on Snapdragon Flight
-
-Attach the Snapdragon Flight board via adb.
-
-```
-$ make qurt
-$ cd build_qurt
-$ make df_testapp-load df_imu_test-load df_mag_test-load df_pressure_test-load
-```
-
-Run mini-dm to see the output from the DSP
-```
-${HEXAGON_SDK_ROOT}/tools/mini-dm/Linux_Debug/mini-dm
-```
-
-Open an new shell and run the application on the target.
-
-```
-$ adb shell
-# cd /home/linaro
-# ./df_testapp
-# ./df_imu_test
-# ./df_pressure_test
-```
-
-The following unit test seems to be failing
-```
-# ./df_mag_test
-```
-
-#### Testing on RPi
-
-TBD

@@ -49,11 +49,8 @@
  * The amount of time in seconds the system should do open loop loiter and wait for gps recovery
  * before it goes into flight termination.
  *
- * @unit s
+ * @unit seconds
  * @min 0.0
- * @max 3600.0
- * @decimal 0
- * @increment 1
  * @group GPS Failure Navigation
  */
 PARAM_DEFINE_FLOAT(NAV_GPSF_LT, 30.0f);
@@ -66,8 +63,6 @@ PARAM_DEFINE_FLOAT(NAV_GPSF_LT, 30.0f);
  * @unit deg
  * @min 0.0
  * @max 30.0
- * @decimal 1
- * @increment 0.5
  * @group GPS Failure Navigation
  */
 PARAM_DEFINE_FLOAT(NAV_GPSF_R, 15.0f);
@@ -80,8 +75,6 @@ PARAM_DEFINE_FLOAT(NAV_GPSF_R, 15.0f);
  * @unit deg
  * @min -30.0
  * @max 30.0
- * @decimal 1
- * @increment 0.5
  * @group GPS Failure Navigation
  */
 PARAM_DEFINE_FLOAT(NAV_GPSF_P, 0.0f);
@@ -91,11 +84,10 @@ PARAM_DEFINE_FLOAT(NAV_GPSF_P, 0.0f);
  *
  * Thrust value which is set during the open loop loiter
  *
- * @unit norm
  * @min 0.0
  * @max 1.0
- * @decimal 2
- * @increment 0.05
  * @group GPS Failure Navigation
  */
 PARAM_DEFINE_FLOAT(NAV_GPSF_TR, 0.7f);
+
+

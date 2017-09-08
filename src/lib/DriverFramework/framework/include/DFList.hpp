@@ -38,8 +38,7 @@
 #include "DisableCopy.hpp"
 #include "SyncObj.hpp"
 
-namespace DriverFramework
-{
+namespace DriverFramework {
 
 
 class DFPointerList : public DisableCopy
@@ -47,7 +46,7 @@ class DFPointerList : public DisableCopy
 public:
 	class DFListNode;
 
-	typedef DFListNode *Index;
+	typedef DFListNode * Index;
 
 	class DFListNode
 	{
@@ -56,7 +55,7 @@ public:
 		~DFListNode();
 
 		Index	m_next;
-		void 	*m_item;
+		void *	m_item;
 	};
 
 	DFPointerList();
@@ -89,7 +88,7 @@ private:
 	unsigned int 	m_size;
 };
 
-template <class T>
+template <class T> 
 class DFManagedList : public DFPointerList
 {
 public:
@@ -99,7 +98,6 @@ public:
 	{
 		Index idx = nullptr;
 		idx = next(idx);
-
 		while (idx != nullptr) {
 			T *tmp = get(idx);
 			delete tmp;
@@ -119,7 +117,6 @@ public:
 			delete tmp;
 			return DFPointerList::erase(idx);
 		}
-
 		return idx;
 	}
 
@@ -127,13 +124,11 @@ public:
 	{
 		Index idx = nullptr;
 		idx = next(idx);
-
 		while (idx != nullptr) {
 			T *tmp = get(idx);
 			delete tmp;
 			idx = next(idx);
 		}
-
 		DFPointerList::clear();
 	}
 
@@ -151,15 +146,15 @@ public:
 class DFUIntList : public DisableCopy
 {
 public:
-	class DFUIntListNode;
+	class DFUIListNode;
 
-	typedef DFUIntListNode *Index;
+	typedef DFUIListNode * Index;
 
-	class DFUIntListNode
+	class DFUIListNode
 	{
 	public:
-		DFUIntListNode(unsigned int item);
-		~DFUIntListNode();
+		DFUIListNode(unsigned int item);
+		~DFUIListNode();
 
 		Index		m_next;
 		unsigned int	m_item;
